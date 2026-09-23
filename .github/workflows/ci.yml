@@ -39,8 +39,32 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace -- -D warnings
 
+      # Release build so the binaries can be published as pipeline artifacts below.
       - name: Build
-        run: cargo build --workspace
+        run: cargo build --workspace --release
 
+      # Also release, to reuse the compiled dependencies of the build step.
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --release
+
+      # Artifact uploads drop the Unix executable bit, so pack the binaries into a tarball.
+      - name: Package artifacts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/release/hof-blaze target/release/hof-forge dist/
+          tar -czf hooks-on-fire-${{ runner.os }}.tar.gz -C dist .
+
+      - name: Package artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/hof-blaze.exe, target/release/hof-forge.exe dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hooks-on-fire-${{ runner.os }}
+          path: ${{ runner.os == 'Windows' && 'dist/*.exe' || format('hooks-on-fire-{0}.tar.gz', runner.os) }}
+          if-no-files-found: error
