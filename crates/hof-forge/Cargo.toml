@@ -1,0 +1,17 @@
+[package]
+name = "hof-forge"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1"
+hof-common = { path = "../hof-common" }
+open = "5"
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"
+slint = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[build-dependencies]
+slint-build = "1"

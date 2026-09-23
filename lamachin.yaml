@@ -1,0 +1,40 @@
+players:
+  count: 2
+signals:
+  - signal: ___startup
+    player: ___all
+    commands:
+      - enable_autofire
+      - lamp_generic
+      - lamp_coin
+  - signal: ___teardown
+    player: ___all
+    commands:
+      - disable_autofire
+  - signal: RawDrive
+    player: ___all
+    commands: []
+  - signal: LampStart
+    player: 1
+    commands:
+      - lamp_start
+  - signal: LampView1
+    player: 2
+    commands:
+      - lamp_start
+  - signal: LampView2
+    player: 1
+    commands:
+      - recoil
+  - signal: LampView3
+    player: ___all
+    commands: []
+  - signal: LampView4
+    player: ___all
+    commands: []
+  - signal: LampLeader
+    player: ___all
+    commands: []
+  - signal: RawLamps
+    player: ___all
+    commands: []

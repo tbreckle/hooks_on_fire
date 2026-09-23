@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rustc:*)",
+      "Bash(cargo --version:*)",
+      "Bash(rustup show:*)",
+      "Bash(rustup target list:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(git init:*)",
+      "Bash(python3:*)",
+      "Bash(cargo metadata:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo doc:*)",
+      "Bash(find ~/.cargo/registry/src -name *.rs -path */slint-1*)",
+      "Bash(head -5 find ~/.cargo/registry/src -name lib.rs -path */slint-[0-9]*)",
+      "Bash(grep -rn \"pub fn with_winit_window\\\\|pub fn set_position\\\\|pub fn position\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/i-slint-core-*/src/window/)",
+      "Bash(grep -n \"with_winit_window\\\\|primary_monitor\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/i-slint-backend-winit-1.15.1/*.rs)",
+      "Bash(chmod:*)"
+    ]
+  }
+}

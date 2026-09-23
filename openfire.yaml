@@ -1,0 +1,30 @@
+---
+device:
+  type: lightgun
+  name: openfire
+  display-name: OpenFire
+  connection-type: serial
+  connection-details:
+    speed: 115200
+  max-instances: 4
+  setup:
+    - M0x0 # Set device mode to Mouse & Keyboard.
+    - S6 # Start with everything enabled.
+    - F1x2x1 # Rumble shortly.
+    - F3x2x3 # Pulse LED green three times.
+    - M1x2 # Set offscreen button mode enabled.
+    - M8x0 # Disable autofire.
+  enable_autofire:
+    - M8x1 # Enable autofire.
+  disable_autofire:
+    - M8x0 # Disable autofire.
+  teardown:
+    - F2x2x1 # Pulse LED red once.
+    - E
+  recoil:
+    - F0x2x1 # Pulse solenoid once.
+  reload:
+    - F1x2x1 # Rumble once.
+  damage:
+    - F1x2x1 # Rumble once on damage.
+    - F2x2x1 # Pulse LED red once on damage.

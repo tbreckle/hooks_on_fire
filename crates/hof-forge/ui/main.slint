@@ -1,0 +1,148 @@
+import { TabWidget } from "std-widgets.slint";
+import { OverviewTab } from "overview_tab.slint";
+import { DevicesTab } from "devices_tab.slint";
+import { SettingsTab } from "settings_tab.slint";
+
+export component MainWindow inherits Window {
+    // Version string incl. git hash and build date, set from Rust.
+    in property <string> version;
+
+    title: "Hooks on Fire - Forge " + root.version;
+    icon: @image-url("../../../assets/icon.png");
+    preferred-width: 800px;
+    preferred-height: 550px;
+    min-width: 600px;
+    min-height: 400px;
+
+    // Data models
+    in property <[StandardListViewItem]> device-list;
+    in property <[StandardListViewItem]> instance-list;
+    in property <[bool]> device-can-add;
+    in-out property <string> device-message <=> devices-tab.device-message;
+
+    // Selection state
+    in-out property <int> selected-device <=> devices-tab.selected-device;
+    in-out property <int> selected-instance <=> devices-tab.selected-instance;
+
+    // Name dialog state
+    in-out property <bool> name-dialog-visible <=> devices-tab.name-dialog-visible;
+    in-out property <string> name-dialog-value <=> devices-tab.name-dialog-value;
+    in-out property <string> name-dialog-error <=> devices-tab.name-dialog-error;
+
+    // Confirm dialog state
+    in-out property <bool> confirm-dialog-visible <=> devices-tab.confirm-dialog-visible;
+    in-out property <string> confirm-dialog-instance-name <=> devices-tab.confirm-dialog-instance-name;
+
+    // Configure dialog state
+    in-out property <bool> configure-dialog-visible <=> devices-tab.configure-dialog-visible;
+    in-out property <string> configure-instance-name <=> devices-tab.configure-instance-name;
+    in-out property <string> configure-connection-type <=> devices-tab.configure-connection-type;
+    in property <[string]> configure-port-labels;
+    in-out property <int> configure-port-index <=> devices-tab.configure-port-index;
+    in property <[string]> configure-player-labels;
+    in-out property <int> configure-player-index <=> devices-tab.configure-player-index;
+    in-out property <bool> configure-player-visible <=> devices-tab.configure-player-visible;
+    in-out property <string> configure-error <=> devices-tab.configure-error;
+
+    // Settings state
+    in-out property <string> tcp-host <=> settings-tab.tcp-host;
+    in-out property <int> tcp-port <=> settings-tab.tcp-port;
+    in-out property <int> udp-broadcast-port <=> settings-tab.udp-broadcast-port;
+    in-out property <string> settings-error <=> settings-tab.settings-error;
+
+    // Overview state
+    in property <string> log-error;
+
+    // Callbacks
+    callback add-clicked(int);
+    callback remove-clicked(int);
+    callback name-confirmed(string);
+    callback name-cancelled();
+    callback delete-confirmed();
+    callback delete-cancelled();
+    callback configure-clicked(int);
+    callback configure-saved();
+    callback configure-cancelled();
+    callback configure-refresh-ports();
+    callback settings-saved();
+    callback open-log();
+
+    function focus-tab-content() {
+        if tabs.current-index == 1 {
+            devices-tab.focus-default();
+        } else if tabs.current-index == 2 {
+            settings-tab.focus-default();
+        } else {
+            shortcuts.focus();
+        }
+    }
+
+    // Global shortcuts. Key events only reach ancestors of the focused widget, so something
+    // inside this scope must always have keyboard focus.
+    shortcuts := FocusScope {
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        init => { self.focus(); }
+
+        capture-key-pressed(event) => {
+            if !event.modifiers.control || devices-tab.any-dialog-open {
+                return reject;
+            }
+            if event.text == Key.Tab && !event.modifiers.shift {
+                tabs.current-index = Math.mod(tabs.current-index + 1, 3);
+            } else if event.text == Key.Backtab || event.text == Key.Tab {
+                tabs.current-index = Math.mod(tabs.current-index + 2, 3);
+            } else if event.text == "1" || event.text == "2" || event.text == "3" {
+                tabs.current-index = event.text.to-float() - 1;
+            } else if (event.text == "s" || event.text == "S") && tabs.current-index == 2 {
+                root.settings-saved();
+            } else if event.text == "l" || event.text == "L" {
+                root.open-log();
+            } else {
+                return reject;
+            }
+            accept
+        }
+
+        tabs := TabWidget {
+            // Move keyboard focus into the newly shown tab (the previously focused widget is hidden).
+            changed current-index => { root.focus-tab-content(); }
+
+            Tab {
+                title: "Overview";
+                OverviewTab {
+                    log-error: root.log-error;
+                    open-log-clicked() => { root.open-log(); }
+                }
+            }
+
+            Tab {
+                title: "Devices";
+                devices-tab := DevicesTab {
+                    device-list: root.device-list;
+                    instance-list: root.instance-list;
+                    device-can-add: root.device-can-add;
+                    add-clicked(idx) => { root.add-clicked(idx); }
+                    remove-clicked(idx) => { root.remove-clicked(idx); }
+                    name-confirmed(name) => { root.name-confirmed(name); }
+                    name-cancelled() => { root.name-cancelled(); }
+                    delete-confirmed() => { root.delete-confirmed(); }
+                    delete-cancelled() => { root.delete-cancelled(); }
+                    configure-clicked(idx) => { root.configure-clicked(idx); }
+                    configure-saved() => { root.configure-saved(); }
+                    configure-cancelled() => { root.configure-cancelled(); }
+                    configure-refresh-ports() => { root.configure-refresh-ports(); }
+                    configure-port-labels: root.configure-port-labels;
+                    configure-player-labels: root.configure-player-labels;
+                }
+            }
+
+            Tab {
+                title: "Settings";
+                settings-tab := SettingsTab {
+                    settings-saved() => { root.settings-saved(); }
+                }
+            }
+        }
+    }
+}

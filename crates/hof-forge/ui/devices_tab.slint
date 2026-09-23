@@ -1,0 +1,613 @@
+import { Button, ComboBox, ListView, LineEdit, Palette } from "std-widgets.slint";
+
+component ListItem inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected: false;
+    callback clicked();
+    callback double-clicked();
+
+    height: 32px;
+    background: selected ? Palette.accent-background :
+                touch.has-hover ? Palette.alternate-background : transparent;
+    border-radius: 4px;
+
+    Text {
+        text: root.label;
+        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+        vertical-alignment: center;
+        x: 8px;
+        width: parent.width - 16px;
+        overflow: elide;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        double-clicked => { root.double-clicked(); }
+    }
+}
+
+// Bordered list that can be focused and navigated with the keyboard:
+// Up/Down/PageUp/PageDown/Home/End select, Enter/Insert/F2 activate, Delete requests removal.
+component KeyboardList inherits Rectangle {
+    in property <[StandardListViewItem]> model;
+    in-out property <int> current: -1;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: fs.has-focus;
+
+    callback activated(int);
+    callback remove-requested(int);
+
+    property <length> item-height: 32px;
+
+    border-width: fs.has-focus ? 2px : 1px;
+    border-color: fs.has-focus ? Palette.accent-background : Palette.border;
+    border-radius: 4px;
+    background: Palette.alternate-background;
+    clip: true;
+
+    public function focus-list() {
+        fs.focus();
+    }
+
+    // Selects row `index` (clamped) and scrolls it into view.
+    function select(index: int) {
+        if root.model.length == 0 {
+            return;
+        }
+        root.current = Math.clamp(index, 0, root.model.length - 1);
+        if root.current * root.item-height + lv.viewport-y < 0 {
+            lv.viewport-y = -root.current * root.item-height;
+        } else if (root.current + 1) * root.item-height + lv.viewport-y > lv.visible-height {
+            lv.viewport-y = lv.visible-height - (root.current + 1) * root.item-height;
+        }
+    }
+
+    fs := FocusScope {
+        enabled: root.enabled;
+
+        key-pressed(event) => {
+            let page = Math.max(1, Math.floor(lv.visible-height / root.item-height));
+            if event.text == Key.UpArrow {
+                root.select(root.current < 0 ? 0 : root.current - 1);
+            } else if event.text == Key.DownArrow {
+                root.select(root.current + 1);
+            } else if event.text == Key.PageUp {
+                root.select(root.current - page);
+            } else if event.text == Key.PageDown {
+                root.select(root.current + page);
+            } else if event.text == Key.Home {
+                root.select(0);
+            } else if event.text == Key.End {
+                root.select(root.model.length - 1);
+            } else if event.text == Key.Return || event.text == Key.Insert || event.text == Key.F2 {
+                if root.current >= 0 {
+                    root.activated(root.current);
+                }
+            } else if event.text == Key.Delete {
+                if root.current >= 0 {
+                    root.remove-requested(root.current);
+                }
+            } else {
+                return reject;
+            }
+            accept
+        }
+
+        lv := ListView {
+            for item[index] in root.model : ListItem {
+                height: root.item-height;
+                label: item.text;
+                selected: index == root.current;
+                clicked => {
+                    root.current = index;
+                    fs.focus();
+                }
+                double-clicked => {
+                    root.current = index;
+                    fs.focus();
+                    if root.enabled { root.activated(index); }
+                }
+            }
+        }
+    }
+}
+
+export component DevicesTab inherits Rectangle {
+    in property <[StandardListViewItem]> device-list;
+    in property <[StandardListViewItem]> instance-list;
+    // Per available device: false if its max-instances limit is reached.
+    in property <[bool]> device-can-add;
+    // Shown below the available devices list (e.g. instance limit reached).
+    in-out property <string> device-message: "";
+    in-out property <int> selected-device: -1;
+    in-out property <int> selected-instance: -1;
+
+    in-out property <bool> name-dialog-visible: false;
+    in-out property <string> name-dialog-value: "";
+    in-out property <string> name-dialog-error: "";
+    in-out property <bool> confirm-dialog-visible: false;
+    in-out property <string> confirm-dialog-instance-name: "";
+
+    // Configure dialog state
+    in-out property <bool> configure-dialog-visible: false;
+    in-out property <string> configure-instance-name: "";
+    in-out property <string> configure-connection-type: "";
+    in property <[string]> configure-port-labels;
+    in-out property <int> configure-port-index: 0;
+    // Player assignment (light guns only). Index 0 = not assigned, n = player n.
+    in property <[string]> configure-player-labels;
+    in-out property <int> configure-player-index: 0;
+    in-out property <bool> configure-player-visible: false;
+    in-out property <string> configure-error: "";
+
+    callback add-clicked(int);
+    callback remove-clicked(int);
+    callback name-confirmed(string);
+    callback name-cancelled();
+    callback delete-confirmed();
+    callback delete-cancelled();
+    callback configure-clicked(int);
+    callback configure-saved();
+    callback configure-cancelled();
+    callback configure-refresh-ports();
+
+    out property <bool> any-dialog-open: root.name-dialog-visible
+        || root.confirm-dialog-visible
+        || root.configure-dialog-visible;
+
+    // Where keyboard focus goes when the name dialog closes (cancel → device list).
+    property <bool> name-dialog-cancelled: false;
+
+    // Keyboard focus is lost when a dialog closes (its widgets are destroyed): put it back
+    // on the list the user is working with.
+    changed name-dialog-visible => {
+        if !self.name-dialog-visible {
+            if root.name-dialog-cancelled {
+                device-list.focus-list();
+            } else {
+                instance-list.focus-list();
+            }
+        }
+    }
+    changed selected-device => {
+        root.device-message = "";
+    }
+    changed confirm-dialog-visible => {
+        if !self.confirm-dialog-visible { instance-list.focus-list(); }
+    }
+    changed configure-dialog-visible => {
+        if !self.configure-dialog-visible { instance-list.focus-list(); }
+    }
+
+    public function focus-default() {
+        device-list.focus-list();
+    }
+
+    // Main content
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        padding: 12px;
+        spacing: 8px;
+
+        // Left panel: available device types from YAML files
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 6px;
+
+            Text {
+                text: "Available Devices";
+                font-weight: 700;
+            }
+
+            device-list := KeyboardList {
+                model: root.device-list;
+                current <=> root.selected-device;
+                enabled: !root.any-dialog-open;
+                activated(index) => { root.add-clicked(index); }
+            }
+
+            if root.device-message != "" : Text {
+                text: root.device-message;
+                color: red;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        // Add button column (between device list and instance list)
+        VerticalLayout {
+            horizontal-stretch: 0;
+            alignment: start;
+            spacing: 6px;
+            padding-top: 24px;
+
+            Button {
+                text: "\u{2795}  Add  (Ins)";
+                enabled: root.selected-device >= 0
+                    && root.device-can-add[root.selected-device]
+                    && !root.any-dialog-open;
+                clicked => { root.add-clicked(root.selected-device); }
+            }
+        }
+
+        // Right panel: configured instances
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 6px;
+
+            Text {
+                text: "Configured Instances";
+                font-weight: 700;
+            }
+
+            instance-list := KeyboardList {
+                model: root.instance-list;
+                current <=> root.selected-instance;
+                enabled: !root.any-dialog-open;
+                activated(index) => { root.configure-clicked(index); }
+                remove-requested(index) => { root.remove-clicked(index); }
+            }
+        }
+
+        // Remove / Configure button column (right of instance list)
+        VerticalLayout {
+            horizontal-stretch: 0;
+            alignment: start;
+            spacing: 6px;
+            padding-top: 24px;
+
+            Button {
+                text: "\u{1F527}  Configure  (F2)";
+                enabled: root.selected-instance >= 0 && !root.any-dialog-open;
+                clicked => { root.configure-clicked(root.selected-instance); }
+            }
+
+            Button {
+                text: "\u{2796}  Remove  (Del)";
+                enabled: root.selected-instance >= 0 && !root.any-dialog-open;
+                clicked => { root.remove-clicked(root.selected-instance); }
+            }
+        }
+    }
+
+    // ── Name input dialog overlay ─────────────────────────────────────────
+    if root.name-dialog-visible : FocusScope {
+        x: 0; y: 0;
+        width: root.width; height: root.height;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+
+        // Escape cancels; Tab / Shift+Tab cycle inside the dialog.
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.name-dialog-cancelled = true;
+                root.name-cancelled();
+                return accept;
+            }
+            let last-has-focus = name-ok.enabled ? name-ok.has-focus : name-cancel.has-focus;
+            if event.text == Key.Tab && !event.modifiers.shift && last-has-focus {
+                name-edit.focus();
+                return accept;
+            }
+            if (event.text == Key.Backtab || (event.text == Key.Tab && event.modifiers.shift)) && name-edit.has-focus {
+                if name-ok.enabled { name-ok.focus(); } else { name-cancel.focus(); }
+                return accept;
+            }
+            reject
+        }
+
+        Rectangle {
+            background: #00000060;
+            width: 100%; height: 100%;
+            TouchArea {}
+        }
+
+        Rectangle {
+            width: 360px;
+            height: 190px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            drop-shadow-blur: 10px;
+            drop-shadow-color: #00000040;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+
+                Text {
+                    text: "Instance Name";
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                name-edit := LineEdit {
+                    text <=> root.name-dialog-value;
+                    init => {
+                        self.focus();
+                        self.select-all();
+                    }
+                    accepted => {
+                        root.name-dialog-cancelled = false;
+                        root.name-confirmed(self.text);
+                    }
+                }
+
+                if root.name-dialog-error != "" : Text {
+                    text: root.name-dialog-error;
+                    color: red;
+                    font-size: 12px;
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    name-cancel := Button {
+                        text: "Cancel";
+                        clicked => {
+                            root.name-dialog-cancelled = true;
+                            root.name-cancelled();
+                        }
+                    }
+
+                    name-ok := Button {
+                        text: "OK";
+                        enabled: root.name-dialog-value != "";
+                        clicked => {
+                            root.name-dialog-cancelled = false;
+                            root.name-confirmed(root.name-dialog-value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Confirm delete dialog overlay ─────────────────────────────────────
+    if root.confirm-dialog-visible : FocusScope {
+        x: 0; y: 0;
+        width: root.width; height: root.height;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+
+        // Escape cancels; Tab / Shift+Tab / Left / Right switch between the two buttons.
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.delete-cancelled();
+                return accept;
+            }
+            if event.text == Key.Tab || event.text == Key.Backtab
+                || event.text == Key.LeftArrow || event.text == Key.RightArrow {
+                if confirm-remove.has-focus { confirm-cancel.focus(); } else { confirm-remove.focus(); }
+                return accept;
+            }
+            reject
+        }
+
+        Rectangle {
+            background: #00000060;
+            width: 100%; height: 100%;
+            TouchArea {}
+        }
+
+        Rectangle {
+            width: 340px;
+            height: 160px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            drop-shadow-blur: 10px;
+            drop-shadow-color: #00000040;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+
+                Text {
+                    text: "Remove Instance?";
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: "Remove \"" + root.confirm-dialog-instance-name + "\"?";
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    confirm-cancel := Button {
+                        text: "Cancel";
+                        clicked => { root.delete-cancelled(); }
+                    }
+
+                    confirm-remove := Button {
+                        text: "Remove";
+                        init => { self.focus(); }
+                        clicked => { root.delete-confirmed(); }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Configure instance dialog overlay ─────────────────────────────────
+    if root.configure-dialog-visible : FocusScope {
+        x: 0; y: 0;
+        width: root.width; height: root.height;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+
+        // Escape cancels, F5 rescans ports, Ctrl+S saves; Tab / Shift+Tab cycle inside the dialog.
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.configure-cancelled();
+                return accept;
+            }
+            if event.text == Key.F5 {
+                root.configure-refresh-ports();
+                return accept;
+            }
+            if event.modifiers.control && (event.text == "s" || event.text == "S") {
+                if configure-save.enabled { root.configure-saved(); }
+                return accept;
+            }
+            let last-has-focus = configure-save.enabled ? configure-save.has-focus : configure-cancel.has-focus;
+            if event.text == Key.Tab && !event.modifiers.shift && last-has-focus {
+                configure-name.focus();
+                return accept;
+            }
+            if (event.text == Key.Backtab || (event.text == Key.Tab && event.modifiers.shift)) && configure-name.has-focus {
+                if configure-save.enabled { configure-save.focus(); } else { configure-cancel.focus(); }
+                return accept;
+            }
+            reject
+        }
+
+        Rectangle {
+            background: #00000060;
+            width: 100%; height: 100%;
+            TouchArea {}
+        }
+
+        Rectangle {
+            width: min(root.width - 48px, 760px);
+            height: min(root.height * 80%, 350px);
+            background: #f5f5f5;
+            border-radius: 8px;
+            drop-shadow-blur: 10px;
+            drop-shadow-color: #00000040;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                Text {
+                    text: "\u{1F527}  Configure Instance";
+                    font-size: 16px;
+                    font-weight: 700;
+                }
+
+                // Instance name
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    Text {
+                        text: "Instance Name";
+                        vertical-alignment: center;
+                        width: 120px;
+                    }
+
+                    configure-name := LineEdit {
+                        text <=> root.configure-instance-name;
+                        horizontal-stretch: 1;
+                        init => { self.focus(); }
+                        accepted => {
+                            if root.configure-instance-name != "" { root.configure-saved(); }
+                        }
+                    }
+                }
+
+                // Connection type (read-only label)
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    Text {
+                        text: "Connection";
+                        vertical-alignment: center;
+                        width: 120px;
+                    }
+
+                    Text {
+                        text: root.configure-connection-type;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        color: #555555;
+                    }
+                }
+
+                // ── Serial connection fields ──────────────────────────
+                if root.configure-connection-type == "serial" : VerticalLayout {
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Port";
+                            vertical-alignment: center;
+                            width: 120px;
+                        }
+
+                        ComboBox {
+                            model: root.configure-port-labels;
+                            current-index <=> root.configure-port-index;
+                            horizontal-stretch: 1;
+                        }
+
+                        Button {
+                            text: "\u{21BB}  (F5)";
+                            horizontal-stretch: 0;
+                            clicked => { root.configure-refresh-ports(); }
+                        }
+                    }
+                }
+
+                // Player assignment (light guns only)
+                if root.configure-player-visible : HorizontalLayout {
+                    spacing: 8px;
+
+                    Text {
+                        text: "Player";
+                        vertical-alignment: center;
+                        width: 120px;
+                    }
+
+                    ComboBox {
+                        model: root.configure-player-labels;
+                        current-index <=> root.configure-player-index;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                // Add future connection types here:
+                // if root.configure-connection-type == "bluetooth" : VerticalLayout { ... }
+
+                // Error message
+                if root.configure-error != "" : Text {
+                    text: root.configure-error;
+                    color: red;
+                    font-size: 12px;
+                }
+
+                // Spacer
+                Rectangle { vertical-stretch: 1; }
+
+                // Buttons
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    configure-cancel := Button {
+                        text: "Cancel";
+                        clicked => { root.configure-cancelled(); }
+                    }
+
+                    configure-save := Button {
+                        text: "Save";
+                        enabled: root.configure-instance-name != "";
+                        clicked => { root.configure-saved(); }
+                    }
+                }
+            }
+        }
+    }
+}

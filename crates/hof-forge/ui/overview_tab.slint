@@ -1,0 +1,82 @@
+import { Button } from "std-widgets.slint";
+
+export component OverviewTab inherits VerticalLayout {
+    in property <string> log-error;
+
+    callback open-log-clicked();
+
+    padding: 24px;
+    spacing: 16px;
+
+    // Logo banner: takes the space left over by the text and scales to fit it.
+    Rectangle {
+        background: #000000;
+        border-radius: 8px;
+        clip: true;
+        min-height: 80px;
+        vertical-stretch: 1;
+
+        Image {
+            source: @image-url("../../../assets/logo.png");
+            image-fit: contain;
+            width: parent.width;
+            height: parent.height;
+        }
+    }
+
+    Text {
+        text: "Hooks on Fire - Forge";
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    Text {
+        text: "Forge is the configuration editor for Hooks on Fire. Use it to manage the hardware devices that hof-blaze controls during gameplay.";
+        wrap: word-wrap;
+    }
+
+    Text {
+        text: "Getting started";
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    Text {
+        text: "1. Place device YAML files (e.g. blast.yaml) next to the hof-forge executable.\n2. Open the Devices tab.\n3. Select a device from the left list and press + to add an instance.\n4. Give the instance a unique name - this is how hof-blaze identifies it.\n5. Select an instance and press Configure to choose its serial port from the connected USB devices.";
+        wrap: word-wrap;
+    }
+
+    Text {
+        text: "Note";
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    Text {
+        text: "hof-forge and hof-blaze cannot run at the same time. Stop hof-blaze before opening Forge.";
+        wrap: word-wrap;
+    }
+
+    Text {
+        text: "Log";
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+
+        Button {
+            text: "\u{1F4C4}  Open hof-blaze log  (Ctrl+L)";
+            clicked => { root.open-log-clicked(); }
+        }
+
+        Text {
+            text: root.log-error;
+            color: red;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+    }
+}

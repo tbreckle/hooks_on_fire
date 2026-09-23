@@ -1,0 +1,95 @@
+import { LineEdit, Button, SpinBox } from "std-widgets.slint";
+
+export component SettingsTab inherits VerticalLayout {
+    padding: 24px;
+    spacing: 16px;
+    alignment: start;
+
+    in-out property <string> tcp-host: "";
+    in-out property <int> tcp-port: 8000;
+    in-out property <int> udp-broadcast-port: 8001;
+    in-out property <string> settings-error: "";
+
+    callback settings-saved();
+
+    public function focus-default() {
+        host-edit.focus();
+    }
+
+    Text {
+        text: "Settings";
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    Text {
+        text: "Network";
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        Text {
+            text: "Listen on hostname";
+            vertical-alignment: center;
+            width: 150px;
+        }
+
+        host-edit := LineEdit {
+            text <=> root.tcp-host;
+            horizontal-stretch: 1;
+            placeholder-text: "localhost";
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        Text {
+            text: "Listen on port";
+            vertical-alignment: center;
+            width: 150px;
+        }
+
+        SpinBox {
+            value <=> root.tcp-port;
+            minimum: 0;
+            maximum: 65535;
+            horizontal-stretch: 1;
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        Text {
+            text: "UDP broadcast listen port";
+            vertical-alignment: center;
+            width: 150px;
+        }
+
+        SpinBox {
+            value <=> root.udp-broadcast-port;
+            minimum: 0;
+            maximum: 65535;
+            horizontal-stretch: 1;
+        }
+    }
+
+    if root.settings-error != "" : Text {
+        text: root.settings-error;
+        color: red;
+        font-size: 12px;
+    }
+
+    HorizontalLayout {
+        alignment: end;
+
+        Button {
+            text: "Save  (Ctrl+S)";
+            clicked => { root.settings-saved(); }
+        }
+    }
+}
