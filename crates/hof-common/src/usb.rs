@@ -107,7 +107,7 @@ pub fn usb_serial_ports() -> Vec<UsbSerialPort> {
         })
         .collect();
 
-    result.sort_by(|a, b| natural_key(&a.path).cmp(&natural_key(&b.path)));
+    result.sort_by_cached_key(|port| natural_key(&port.path));
     result.dedup_by(|a, b| a.path == b.path);
     result
 }
