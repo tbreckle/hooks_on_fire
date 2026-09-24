@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+The Rust version is pinned in `rust-toolchain.toml` (rustup installs it automatically; CI installs it with `rustup toolchain install`). To upgrade Rust, change `channel` there and fix any new clippy lints.
+
 ### Build
 ```bash
 cargo build --workspace
@@ -177,7 +179,7 @@ Game files support up to 4 players (`MAX_PLAYERS` in `hof-common`).
 
 ### hof-forge
 
-Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. The Overview tab can open the hof-blaze log file with the OS default program and the user layer's game files folder in the file manager (`open` crate; `Ctrl+L` / `Ctrl+G`).
+Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. hof-forge uses Slint under the Slint Royalty-free License 2.0 (`LICENSES/LicenseRef-Slint-Royalty-free-2.0.md`), which requires attribution: keep the `AboutSlint` widget on the Overview tab and the #MadeWithSlint badge in `README.md`. The Overview tab can open the hof-blaze log file with the OS default program and the user layer's game files folder in the file manager (`open` crate; `Ctrl+L` / `Ctrl+G`).
 
 ### Instance locking
 

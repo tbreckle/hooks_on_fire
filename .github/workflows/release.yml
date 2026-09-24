@@ -36,9 +36,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # Installs the Rust version pinned in rust-toolchain.toml, plus the build target.
+      - name: Install Rust
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
 
@@ -52,7 +54,7 @@ jobs:
           cp target/${{ matrix.target }}/release/hof-blaze dist/
           cp target/${{ matrix.target }}/release/hof-forge dist/
           cp -R data/devices data/games dist/
-          cp README.md LICENSE dist/
+          cp -R README.md LICENSE LICENSES dist/
           tar -czf hooks-on-fire-${{ matrix.target }}.tar.gz -C dist .
 
       - name: Package (Windows)
@@ -63,7 +65,7 @@ jobs:
           Copy-Item target/${{ matrix.target }}/release/hof-blaze.exe dist/
           Copy-Item target/${{ matrix.target }}/release/hof-forge.exe dist/
           Copy-Item -Recurse data/devices, data/games dist/
-          Copy-Item README.md, LICENSE dist/
+          Copy-Item -Recurse README.md, LICENSE, LICENSES dist/
           Compress-Archive -Path dist/* -DestinationPath hooks-on-fire-${{ matrix.target }}.zip
 
       - name: Upload artifacts

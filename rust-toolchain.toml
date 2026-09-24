@@ -1,0 +1,6 @@
+# Rust version used for this project, locally and in CI (the workflows install exactly this).
+# Raise it deliberately; new clippy versions may add lints that fail `-D warnings`.
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["rustfmt", "clippy", "rust-src"]

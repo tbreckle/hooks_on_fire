@@ -8,7 +8,8 @@ hof-forge cannot run while hof-blaze is running. Exit hof-blaze from its tray me
 
 ## Overview tab
 
-Shows a short introduction and two buttons:
+Shows a short introduction, license information (hof-forge's user interface is made with
+[Slint](https://slint.dev)) and two buttons:
 
 - **Open hof-blaze log** (`Ctrl+L`) opens hof-blaze's [log file](hof-blaze.md#log-file) with
   your system's default program for log files.

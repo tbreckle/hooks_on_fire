@@ -1,4 +1,4 @@
-import { Button } from "std-widgets.slint";
+import { AboutSlint, Button } from "std-widgets.slint";
 
 export component OverviewTab inherits VerticalLayout {
     in property <string> overview-error;
@@ -43,7 +43,7 @@ export component OverviewTab inherits VerticalLayout {
     }
 
     Text {
-        text: "1. Place device YAML files (e.g. blast.yaml) next to the hof-forge executable.\n2. Open the Devices tab.\n3. Select a device from the left list and press + to add an instance.\n4. Give the instance a unique name - this is how hof-blaze identifies it.\n5. Select an instance and press Configure to choose its serial port from the connected USB devices.";
+        text: "1. Device files for supported hardware are included. Put device files for other hardware into the devices folder of your user folder.\n2. Open the Devices tab.\n3. Select a device from the left list and press + to add an instance.\n4. Give the instance a unique name - this is how hof-blaze identifies it.\n5. Select an instance and press Configure to choose its serial port from the connected USB devices.";
         wrap: word-wrap;
     }
 
@@ -83,6 +83,26 @@ export component OverviewTab inherits VerticalLayout {
             vertical-alignment: center;
             wrap: word-wrap;
             horizontal-stretch: 1;
+        }
+    }
+
+    // About: required by the Slint Royalty-free License (AboutSlint must stay visible here).
+    HorizontalLayout {
+        spacing: 16px;
+
+        Text {
+            text: "Hooks on Fire is released under the MIT License. Its user interface is made with Slint, used under the Slint Royalty-free Desktop, Mobile, and Web Applications License 2.0.";
+            wrap: word-wrap;
+            font-size: 11px;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        AboutSlint {
+            horizontal-stretch: 0;
+            vertical-stretch: 0;
+            preferred-width: 200px;
+            preferred-height: self.min-height;
         }
     }
 }

@@ -27,9 +27,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      # Installs the Rust version and components pinned in rust-toolchain.toml.
+      - name: Install Rust
+        run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
 
@@ -54,7 +54,7 @@ jobs:
           mkdir -p dist
           cp target/release/hof-blaze target/release/hof-forge dist/
           cp -R data/devices data/games dist/
-          cp README.md LICENSE dist/
+          cp -R README.md LICENSE LICENSES dist/
           tar -czf hooks-on-fire-${{ runner.os }}.tar.gz -C dist .
 
       - name: Package artifacts (Windows)
@@ -64,7 +64,7 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item target/release/hof-blaze.exe, target/release/hof-forge.exe dist/
           Copy-Item -Recurse data/devices, data/games dist/
-          Copy-Item README.md, LICENSE dist/
+          Copy-Item -Recurse README.md, LICENSE, LICENSES dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

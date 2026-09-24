@@ -17,6 +17,16 @@ It runs on Windows, Linux and macOS and consists of two programs:
 - **hof-blaze** – runs in the background (system tray) while you play and drives your devices.
 - **hof-forge** – configuration editor for your devices, serial ports, players and network settings.
 
+## Made with Slint
+<a href="https://slint.dev">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://slint.dev/logo/MadeWithSlint-logo-dark.svg">
+    <img alt="#MadeWithSlint" src="https://slint.dev/logo/MadeWithSlint-logo-light.svg" height="60">
+  </picture>
+</a>
+
+The user interface of hof-forge is made with the excellent [Slint UI toolkit](https://slint.dev).
+
 ## Features
 
 - Per-game configuration: map any output signal to device commands, per player.
@@ -54,7 +64,8 @@ Hooks on Fire is written in Rust. On Linux, install the build dependencies first
 sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Then build both programs:
+The Rust version is pinned in `rust-toolchain.toml`; [rustup](https://rustup.rs) installs it
+automatically. Then build both programs:
 
 ```bash
 cargo build --workspace --release
@@ -63,3 +74,6 @@ cargo build --workspace --release
 ## License
 
 Hooks on Fire is released under the [MIT License](LICENSE).
+
+hof-forge uses [Slint](https://slint.dev) under the
+[Slint Royalty-free Desktop, Mobile, and Web Applications License 2.0](LICENSES/LicenseRef-Slint-Royalty-free-2.0.md).
