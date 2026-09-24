@@ -1,0 +1,102 @@
+---
+# Game file for "Aliens Armageddon" (game name: aa).
+display-name: "Aliens Armageddon"
+players:
+  count: 2
+signals:
+  - signal: ___startup
+    player: ___all
+    commands: []
+  - signal: ___teardown
+    player: ___all
+    commands: []
+  - signal: P1_LmpStart
+    player: 1
+    commands:
+      - lamp_start
+  - signal: P1_LmpHolder
+    player: ___all
+    commands: []
+  - signal: P1_LmpGun
+    player: ___all
+    commands: []
+  - signal: P1_LmpGunGrenadeBtn
+    player: ___all
+    commands: []
+  - signal: P1_LmpGunMolding
+    player: ___all
+    commands: []
+  - signal: P2_LmpHolder
+    player: ___all
+    commands: []
+  - signal: P2_LmpStart
+    player: 2
+    commands:
+      - lamp_start
+  - signal: P2_LmpGun
+    player: ___all
+    commands: []
+  - signal: P2_LmpGunGrenadeBtn
+    player: ___all
+    commands: []
+  - signal: P2_LmpGunMolding
+    player: ___all
+    commands: []
+  - signal: LmpSpeaker
+    player: ___all
+    commands: []
+  - signal: LmpMarqueeBacklight
+    player: ___all
+    commands: []
+  - signal: LmpMarqueeUplight
+    player: ___all
+    commands: []
+  - signal: LmpUpperCtrlPanel
+    player: ___all
+    commands: []
+  - signal: LmpLowerCtrlPanel
+    player: ___all
+    commands: []
+  - signal: LmpBillboard
+    player: ___all
+    commands: []
+  - signal: P1_GunMotor
+    player: ___all
+    commands: []
+  - signal: P2_GunMotor
+    player: ___all
+    commands: []
+  - signal: P1_Ammo
+    player: ___all
+    commands: []
+  - signal: P2_Ammo
+    player: ___all
+    commands: []
+  - signal: P1_Clip
+    player: ___all
+    commands: []
+  - signal: P2_Clip
+    player: ___all
+    commands: []
+  - signal: P1_CtmRecoil
+    player: 1
+    commands:
+      - lightgun_recoil
+  - signal: P2_CtmRecoil
+    player: 2
+    commands:
+      - lightgun_recoil
+  - signal: P1_Life
+    player: ___all
+    commands: []
+  - signal: P2_Life
+    player: ___all
+    commands: []
+  - signal: P1_Damaged
+    player: 1
+    commands:
+      - lightgun_damage
+  - signal: P2_Damaged
+    player: 2
+    commands:
+      - lightgun_damage
