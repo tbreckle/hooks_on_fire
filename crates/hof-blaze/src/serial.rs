@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::devices::{Device, DeviceRegistry};
 
@@ -104,7 +104,7 @@ impl SerialManager {
             .map_err(|e| anyhow::anyhow!("Serial port mutex poisoned: {}", e))?;
 
         for cmd in commands {
-            info!("Serial TX [{}]: {}", port_path, cmd);
+            debug!("Serial TX [{}]: {}", port_path, cmd);
             port.port
                 .write_all(cmd.as_bytes())
                 .with_context(|| format!("Failed to write command '{}' to '{}'", cmd, port_path))?;

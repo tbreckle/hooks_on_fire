@@ -14,7 +14,8 @@ device:
     - B2
   enter_game:
     - BLx{GAMENAME}
-  leave_game: []
+  leave_game:
+    - BLx
   lamp_start:
     - B3x{PLAYER}x{VALUE}
     # - B3x{PLAYER}x{VALUE:0-off,1-on,2-blink,3-flash}x{DURATION:blink duration in ms if blinking,NUMBER:number of flashes if flashing}
