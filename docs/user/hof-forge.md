@@ -46,7 +46,7 @@ double-click). The dialog contains:
 |---|---|
 | Instance Name | Unique name of this device. |
 | Connection | Connection type (currently always `serial`). |
-| Port | The USB device this instance talks to. The list shows all connected USB serial devices with their current port, name and USB id, e.g. `/dev/ttyACM6 – OpenFIRE FIRECon P1 [f143:0001]` or `COM5 – …`. Press **↻** (`F5`) after plugging in a device. |
+| Port | The USB device this instance talks to. The list shows all connected USB serial devices with their current port, name and USB id, e.g. `/dev/ttyACM6 – OpenFIRE FIRECon P1 [f143:0001]` or `COM5 – …`. Press the refresh button (`F5`) after plugging in a device. |
 | Player | Light guns only: the player this gun belongs to (1–4), or *Not assigned*. See [player assignment](#player-assignment). |
 
 Press **Save** (`Enter`, `Ctrl+S`) to store the settings.

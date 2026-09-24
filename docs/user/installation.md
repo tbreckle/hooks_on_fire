@@ -85,5 +85,6 @@ The programs are not signed. If macOS refuses to start them, allow them under
 
 ### Windows
 
-No additional installation is needed. hof-blaze runs without a console window; its
-messages go to the [log file](hof-blaze.md#log-file).
+No additional installation is needed. hof-blaze and hof-forge run without a console window.
+hof-blaze's messages go to the [log file](hof-blaze.md#log-file); errors that prevent a
+program from starting are shown in a message box.

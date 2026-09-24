@@ -60,10 +60,11 @@ The project is a Cargo workspace (`crates/*`) with three crates:
 
 ### hof-blaze startup and shutdown
 
-`main.rs` is split into two phases:
+`main.rs` builds the Tokio runtime by hand: the main thread is reserved for the UI (startup message box, tray), because macOS only allows UI on the main thread and winit refuses to create its event loop elsewhere on Windows. All other work runs on the runtime's worker threads. There are three phases:
 
-1. `Blaze::start()` – everything that can fail on start: instance lock, config, device registry (incl. USB port resolution and `max-instances` check), opening serial ports, device `setup` commands, TCP/UDP receivers, engine, action router. An error here is logged and shown in a message box (`rfd`); hof-blaze exits after OK. If it fails after `setup` was sent, the device `teardown` commands are sent first.
-2. `Blaze::run()` – starts the tray, waits for Exit, then shuts down: receivers → engine (fires `___teardown` and `leave_game`, logs data statistics) → drain action router → device `teardown` → tray.
+1. `Blaze::start()` (on the runtime) – everything that can fail on start: instance lock, config, device registry (incl. USB port resolution and `max-instances` check), opening serial ports, device `setup` commands, TCP/UDP receivers, engine, action router. An error here is logged and shown in a message box (`rfd`); hof-blaze exits after OK. If it fails after `setup` was sent, the device `teardown` commands are sent first.
+2. `tray::run()` (on the main thread) – shows the tray and runs its event loop (GTK on Linux, winit on Windows/macOS) until Exit is chosen in the tray menu. `TrayEvent`s are received by a task on the runtime and passed to the event loop.
+3. `Blaze::shutdown()` (on the runtime) – receivers → engine (fires `___teardown` and `leave_game`, logs data statistics) → drain action router → device `teardown`.
 
 The tray is started only after the startup phase because on Linux both the tray and the `rfd` message box use GTK, which must not be driven from two threads.
 
@@ -179,7 +180,7 @@ Game files support up to 4 players (`MAX_PLAYERS` in `hof-common`).
 
 ### hof-forge
 
-Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. hof-forge uses Slint under the Slint Royalty-free License 2.0 (`LICENSES/LicenseRef-Slint-Royalty-free-2.0.md`), which requires attribution: keep the `AboutSlint` widget on the Overview tab and the #MadeWithSlint badge in `README.md`. The Overview tab can open the hof-blaze log file with the OS default program and the user layer's game files folder in the file manager (`open` crate; `Ctrl+L` / `Ctrl+G`).
+Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. hof-forge uses Slint under the Slint Royalty-free License 2.0 (`LICENSES/LicenseRef-Slint-Royalty-free-2.0.md`), which requires attribution: keep the `AboutSlint` widget on the Overview tab and the #MadeWithSlint badge in `README.md`. The Overview tab can open the hof-blaze log file with the OS default program and the user layer's game files folder in the file manager (`open` crate; `Ctrl+L` / `Ctrl+G`). On Windows hof-forge is built with `windows_subsystem = "windows"` (no console); errors returned from `run()` (e.g. hof-blaze is running, config fails to parse) and failed config saves (`report_save_error`, deferred with a zero timer so no `AppState` borrow is held while the box is open) are shown in an `rfd` message box. Icons are SVGs in `ui/icons/` (Button `icon` + `colorize-icon`), not Unicode glyphs, which Windows fonts may lack.
 
 ### Instance locking
 

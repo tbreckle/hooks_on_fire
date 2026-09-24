@@ -554,7 +554,10 @@ export component DevicesTab inherits Rectangle {
                         }
 
                         Button {
-                            text: "\u{21BB}  (F5)";
+                            // An icon instead of the "↻" glyph, which Windows fonts lack.
+                            icon: @image-url("icons/refresh.svg");
+                            colorize-icon: true;
+                            text: "(F5)";
                             horizontal-stretch: 0;
                             clicked => { root.configure-refresh-ports(); }
                         }

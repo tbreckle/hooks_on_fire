@@ -1,3 +1,6 @@
+// Windows: run without a console window (hof-forge is a GUI app).
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 slint::include_modules!();
 
 mod ports;
@@ -14,7 +17,7 @@ use hof_common::instance_lock::InstanceLock;
 use hof_common::paths;
 use serde::Deserialize;
 use slint::{ModelRc, SharedString, StandardListViewItem, VecModel};
-use tracing::info;
+use tracing::{error, info};
 
 // Minimal structs for detecting and reading device YAML files.
 #[derive(Deserialize)]
@@ -124,6 +127,40 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
+    run().inspect_err(|err| {
+        error!("hof-forge failed: {err:#}");
+        show_error(err);
+    })
+}
+
+/// Shows an error in a message box and waits until the user presses OK.
+/// Without a console (Windows) this is the only way the user learns about it.
+fn show_error(err: &anyhow::Error) {
+    // Without a display GTK cannot start and the dialog would block forever (e.g. over SSH).
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
+        return;
+    }
+
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("Hooks on Fire - Forge")
+        .set_description(format!("{err:#}"))
+        .set_buttons(rfd::MessageButtons::Ok)
+        .show();
+}
+
+/// Logs a failed config save and shows it in a message box.
+///
+/// The box is opened after the current callback has returned: while it is open, the event
+/// loop may run other callbacks, which must not find `AppState` still borrowed.
+fn report_save_error(err: anyhow::Error) {
+    let err = err.context("The configuration could not be saved");
+    error!("{err:#}");
+    slint::Timer::single_shot(std::time::Duration::ZERO, move || show_error(&err));
+}
+
+fn run() -> anyhow::Result<()> {
     let version_string = build_info::format_version(
         env!("CARGO_PKG_VERSION"),
         env!("HOF_GIT_HASH"),
@@ -242,8 +279,8 @@ fn main() -> anyhow::Result<()> {
                 connection_details: DeviceConnectionDetails::empty_serial(),
                 player: None,
             });
-            if let Err(e) = st.config.save() {
-                tracing::error!("Failed to save config: {e}");
+            if let Err(err) = st.config.save() {
+                report_save_error(err);
             }
             let new_idx = st.config.devices.len() - 1;
             let row = refresh_instance_list(&mut st, &instance_model_clone, Some(new_idx));
@@ -292,8 +329,8 @@ fn main() -> anyhow::Result<()> {
             let mut st = state_clone.borrow_mut();
             let idx = st.pending_instance_idx;
             st.config.devices.remove(idx);
-            if let Err(e) = st.config.save() {
-                tracing::error!("Failed to save config: {e}");
+            if let Err(err) = st.config.save() {
+                report_save_error(err);
             }
             refresh_instance_list(&mut st, &instance_model_clone, None);
             st.refresh_device_list();
@@ -402,8 +439,8 @@ fn main() -> anyhow::Result<()> {
                     .filter(|p| (1..=MAX_PLAYERS).contains(p));
             }
 
-            if let Err(e) = st.config.save() {
-                tracing::error!("Failed to save config: {e}");
+            if let Err(err) = st.config.save() {
+                report_save_error(err);
             }
             // Update instance list display (a rename may change the sort position).
             let row = refresh_instance_list(&mut st, &instance_model_clone, Some(idx));
@@ -451,10 +488,12 @@ fn main() -> anyhow::Result<()> {
             st.config.tcp_host = tcp_host;
             st.config.tcp_port = tcp_port;
             st.config.udp_broadcast_port = udp_port;
-            if let Err(e) = st.config.save() {
-                tracing::error!("Failed to save config: {e}");
+            if let Err(err) = st.config.save() {
                 drop(st);
-                win.set_settings_error(SharedString::from(format!("Save failed: {e}").as_str()));
+                win.set_settings_error(SharedString::from(
+                    format!("Save failed: {err:#}").as_str(),
+                ));
+                report_save_error(err);
                 return;
             }
             drop(st);

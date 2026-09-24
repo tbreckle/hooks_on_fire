@@ -28,17 +28,27 @@ use crate::devices::{DeviceRegistry, DeviceType};
 use crate::engine::{start_engine, EngineHandle};
 use crate::serial::SerialManager;
 use crate::tcp_connector::{start_tcp_connector, TcpConnectorHandle};
-use crate::tray::TrayHandle;
 use crate::udp_receiver::{start_udp_receiver, UdpReceiverHandle};
 use hof_common::events::{GameEvent, StateEvent};
 use tokio::sync::mpsc;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     // Keep the guard until the end of main so the last log lines are written.
     let _log_guard = logging::init();
 
-    let blaze = match Blaze::start().await {
+    // The main thread is reserved for the UI (startup message box, tray): macOS only allows it
+    // there. Everything else runs on the runtime's worker threads.
+    let runtime = match tokio::runtime::Runtime::new().context("Failed to start the Tokio runtime")
+    {
+        Ok(runtime) => runtime,
+        Err(err) => {
+            error!("hof-blaze failed to start: {err:#}");
+            show_startup_error(&err);
+            return Err(err);
+        }
+    };
+
+    let mut blaze = match runtime.block_on(Blaze::start()) {
         Ok(blaze) => blaze,
         Err(err) => {
             error!("hof-blaze failed to start: {err:#}");
@@ -47,7 +57,23 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let result = blaze.run().await;
+    // Send startup notification.
+    let _ = notify_rust::Notification::new()
+        .summary(&format!("Hooks on Fire {}", blaze.version_string))
+        .body("Blaze started.\n\nWaiting for connections...")
+        .show();
+
+    info!("Application running. Click Exit in the tray menu to quit.");
+    let tray_rx = blaze
+        .tray_rx
+        .take()
+        .expect("tray receiver is taken only once");
+    let tray_result = tray::run(runtime.handle(), tray_rx, &blaze.version_string);
+    if let Err(err) = &tray_result {
+        error!("Tray failed: {err:#}");
+    }
+
+    let result = runtime.block_on(blaze.shutdown()).and(tray_result);
     if let Err(err) = &result {
         error!("hof-blaze stopped with an error: {err:#}");
     }
@@ -79,7 +105,8 @@ struct Blaze {
     version_string: String,
     devices: Arc<DeviceRegistry>,
     serial: Arc<SerialManager>,
-    tray_rx: mpsc::Receiver<TrayEvent>,
+    /// Taken by the tray when it starts.
+    tray_rx: Option<mpsc::Receiver<TrayEvent>>,
     keep_alive_tx: mpsc::Sender<GameEvent>,
     udp_handle: UdpReceiverHandle,
     tcp_handle: TcpConnectorHandle,
@@ -90,6 +117,7 @@ struct Blaze {
 impl Blaze {
     /// Startup phase: everything that can fail on start. Errors returned here are shown to
     /// the user in a message box, so the tray (GTK on Linux) is only started afterwards.
+    /// Runs on the Tokio runtime, while `main` shows the message box on the main thread.
     async fn start() -> anyhow::Result<Self> {
         let version_string = build_info::format_version(
             env!("CARGO_PKG_VERSION"),
@@ -186,7 +214,7 @@ impl Blaze {
             version_string,
             devices,
             serial,
-            tray_rx,
+            tray_rx: Some(tray_rx),
             keep_alive_tx,
             udp_handle,
             tcp_handle,
@@ -195,20 +223,8 @@ impl Blaze {
         })
     }
 
-    /// Starts the tray and runs until exit is requested, then shuts everything down.
-    async fn run(self) -> anyhow::Result<()> {
-        let mut tray_handle: TrayHandle =
-            tray::start_tray(self.tray_rx, self.version_string.clone()).await?;
-        // Send startup notification.
-        let _ = notify_rust::Notification::new()
-            .summary(&format!("Hooks on Fire {}", self.version_string))
-            .body("Blaze started.\n\nWaiting for connections...")
-            .show();
-
-        // Wait for exit signal from tray menu
-        info!("Application running. Click Exit in the tray menu to quit.");
-        tray_handle.wait_for_exit().await;
-
+    /// Shuts everything down after the tray has exited.
+    async fn shutdown(self) -> anyhow::Result<()> {
         info!("Exit requested, shutting down...");
 
         self.udp_handle.shutdown()?;
@@ -226,8 +242,6 @@ impl Blaze {
         if let Err(err) = self.serial.send_teardown(&self.devices) {
             warn!("Error during device teardown: {:#}", err);
         }
-
-        tray_handle.shutdown()?;
 
         info!("All threads exited. Goodbye!");
 

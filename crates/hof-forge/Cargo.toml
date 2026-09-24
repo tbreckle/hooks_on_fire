@@ -8,6 +8,7 @@ license.workspace = true
 anyhow = "1"
 hof-common = { path = "../hof-common" }
 open = "5"
+rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml_ng = "0.10"
 slint = "1"

@@ -2034,6 +2034,7 @@ dependencies = [
  "anyhow",
  "hof-common",
  "open",
+ "rfd",
  "serde",
  "serde_yaml_ng",
  "slint",
