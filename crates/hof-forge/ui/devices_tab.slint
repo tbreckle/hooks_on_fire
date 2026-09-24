@@ -55,10 +55,10 @@ component KeyboardList inherits Rectangle {
             return;
         }
         root.current = Math.clamp(index, 0, root.model.length - 1);
-        if root.current * root.item-height + lv.viewport-y < 0 {
-            lv.viewport-y = -root.current * root.item-height;
-        } else if (root.current + 1) * root.item-height + lv.viewport-y > lv.visible-height {
-            lv.viewport-y = lv.visible-height - (root.current + 1) * root.item-height;
+        if root.current * root.item-height + lv.content-y < 0 {
+            lv.content-y = -root.current * root.item-height;
+        } else if (root.current + 1) * root.item-height + lv.content-y > lv.visible-height {
+            lv.content-y = lv.visible-height - (root.current + 1) * root.item-height;
         }
     }
 
