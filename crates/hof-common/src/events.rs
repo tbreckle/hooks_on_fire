@@ -40,7 +40,20 @@ pub enum GameEvent {
 }
 
 pub enum TrayEvent {
-    StatusConnected { host: String, port: u16 },
+    StatusConnected {
+        host: String,
+        port: u16,
+    },
     StatusDisconnected,
-    StatusFaulty { error: String },
+    StatusFaulty {
+        error: String,
+    },
+    /// A game was started: its name (as received with `mame_start`) and the `display-name`
+    /// of its game file.
+    GameStarted {
+        name: String,
+        display_name: Option<String>,
+    },
+    /// No game is running (anymore).
+    GameEnded,
 }

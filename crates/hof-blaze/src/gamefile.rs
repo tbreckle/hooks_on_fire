@@ -7,6 +7,8 @@ use std::path::Path;
 pub const STARTUP_SIGNAL: &str = "___startup";
 /// Fixed signal fired by the engine each time a game ends (game stop, new game or quit).
 pub const TEARDOWN_SIGNAL: &str = "___teardown";
+/// Allowed range of a signal's `repeat` interval in ms.
+pub const REPEAT_RANGE_MS: std::ops::RangeInclusive<u64> = 10..=10_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -46,11 +48,23 @@ pub struct Signal {
     pub signal: String,
     #[serde(default = "PlayerSpec::all")]
     pub player: PlayerSpec,
+    /// Optional: while the signal is held (value not `0`), repeat the commands every
+    /// `repeat` ms (see `repeater`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat: Option<u64>,
     pub commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
+    /// Optional: human-readable title of the game (e.g. "The Lost World: Jurassic Park"), shown
+    /// in the tray. The game name itself is the file name.
+    #[serde(
+        rename = "display-name",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub display_name: Option<String>,
     pub players: Players,
     /// Device types (`lightgun`, `lightcontroller`) and device names (e.g. `openfire`) that
     /// get no commands while this game runs, not even `enter_game` / `leave_game`.
@@ -78,6 +92,14 @@ impl GameConfig {
             );
         }
 
+        if self
+            .display_name
+            .as_ref()
+            .is_some_and(|name| name.trim().is_empty())
+        {
+            bail!("'display-name' cannot be empty");
+        }
+
         if self.suppression.iter().any(|s| s.trim().is_empty()) {
             bail!("Suppression entries cannot be empty");
         }
@@ -97,6 +119,22 @@ impl GameConfig {
             if signal.signal.is_empty() {
                 bail!("Signal name cannot be empty in signal #{}", idx);
             }
+
+            if let Some(repeat) = signal.repeat {
+                if signal.signal == STARTUP_SIGNAL || signal.signal == TEARDOWN_SIGNAL {
+                    bail!("Signal {} cannot use 'repeat'", signal.signal);
+                }
+                if !REPEAT_RANGE_MS.contains(&repeat) {
+                    bail!(
+                        "Invalid 'repeat' {} in signal #{} (signal: {}): allowed are {} to {} ms",
+                        repeat,
+                        idx,
+                        signal.signal,
+                        REPEAT_RANGE_MS.start(),
+                        REPEAT_RANGE_MS.end()
+                    );
+                }
+            }
         }
 
         Ok(())
@@ -113,6 +151,7 @@ impl GameConfig {
                     Signal {
                         signal: name.to_string(),
                         player: PlayerSpec::all(),
+                        repeat: None,
                         commands: vec![],
                     },
                 );
@@ -124,6 +163,7 @@ impl GameConfig {
 
     pub(crate) fn default() -> GameConfig {
         let mut config = GameConfig {
+            display_name: None,
             players: Players { count: 2 },
             suppression: vec![],
             signals: vec![],
@@ -336,5 +376,41 @@ mod fixed_signal_tests {
             Gamefile::parse_str("players:\n  count: 2\nsuppression:\n  - lightgun\n").unwrap();
         assert_eq!(config.suppression, ["lightgun"]);
         assert!(Gamefile::parse_str("players:\n  count: 2\nsuppression:\n  - ''\n").is_err());
+    }
+
+    fn signal_yaml(signal: &str, repeat: &str) -> String {
+        format!("players:\n  count: 2\nsignals:\n  - signal: {signal}\n{repeat}    commands: []\n")
+    }
+
+    #[test]
+    fn display_name_is_optional() {
+        let config = Gamefile::parse_str("players:\n  count: 2\n").unwrap();
+        assert_eq!(config.display_name, None);
+        assert!(!serde_yaml::to_string(&config)
+            .unwrap()
+            .contains("display-name"));
+
+        let config =
+            Gamefile::parse_str("display-name: Jurassic Park\nplayers:\n  count: 2\n").unwrap();
+        assert_eq!(config.display_name.as_deref(), Some("Jurassic Park"));
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.starts_with("display-name: Jurassic Park\n"));
+
+        assert!(Gamefile::parse_str("display-name: ''\nplayers:\n  count: 2\n").is_err());
+    }
+
+    #[test]
+    fn repeat_is_optional_and_validated() {
+        let config = Gamefile::parse_str(&signal_yaml("P1_CtmRecoil", "")).unwrap();
+        assert_eq!(config.signals[0].repeat, None);
+        assert!(!serde_yaml::to_string(&config).unwrap().contains("repeat"));
+
+        let config =
+            Gamefile::parse_str(&signal_yaml("P1_CtmRecoil", "    repeat: 100\n")).unwrap();
+        assert_eq!(config.signals[0].repeat, Some(100));
+
+        assert!(Gamefile::parse_str(&signal_yaml("P1_CtmRecoil", "    repeat: 5\n")).is_err());
+        assert!(Gamefile::parse_str(&signal_yaml("P1_CtmRecoil", "    repeat: 10001\n")).is_err());
+        assert!(Gamefile::parse_str(&signal_yaml(STARTUP_SIGNAL, "    repeat: 100\n")).is_err());
     }
 }

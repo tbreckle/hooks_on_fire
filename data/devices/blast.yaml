@@ -8,10 +8,6 @@ device:
   connection-details:
     speed: 115200
   max-instances: 1
-  # setup:
-  #   - B1
-  # teardown:
-  #   - B2
   enter_game:
     - B1
     - BLx{GAMENAME}
@@ -20,7 +16,6 @@ device:
     - B2
   lamp_start:
     - B3x{PLAYER}x{VALUE}
-    # - B3x{PLAYER}x{VALUE:0-off,1-on,2-blink,3-flash}x{DURATION:blink duration in ms if blinking,NUMBER:number of flashes if flashing}
   lamp_coin:
     - B4x{PLAYER}x{VALUE}
   lamp_a:
@@ -29,5 +24,3 @@ device:
     - B6x{PLAYER}x{VALUE}
   lamp_generic:
     - B7x4x2000
-  lamp_cabinet:
-    - B9x1x{VALUE}

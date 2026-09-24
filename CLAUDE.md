@@ -82,9 +82,10 @@ UDP (udp_receiver) ───┘                                └──► Game
 1. `tcp_connector` and `udp_receiver` receive newline-delimited `key=value` messages and send them as `LineEvent::NewLine` on a Tokio `mpsc` channel. While nothing is listening on the TCP port (connection refused), the connector retries every second but only logs "Waiting for connection" every 10 seconds. When an established connection ends (closed, reset or aborted by the source), the connector sends `LineEvent::Disconnected` and reconnects; a reset/abort is a normal disconnect, not the faulty tray state.
 2. `line_processor` parses lines: special keys (`mame_start`/`game`, `mame_stop`, `pause`) become `StateEvent`; everything else becomes `GameEvent::Data`. `mame_start=___empty` is ignored. `LineEvent::Disconnected` becomes `StateEvent::GameStopped` if a game is running (TeknoParrot/OutputBlaster quits without `mame_stop`).
 3. `engine` holds the active `GameConfig` (loaded from a per-game YAML file, e.g. `lostwsga.yaml`) and the current game name. On `StateEvent::NewGame` it ends the previous game, loads/creates the game file and starts the new one. On `GameEvent::Data` it matches against configured signals and emits `GameEvent::Action` events. It also collects data event statistics (`data_stats.rs`) that are logged on shutdown.
+   After every `StateEvent` the engine sends `TrayEvent::GameStarted` (game name + the game file's `display-name`) or `TrayEvent::GameEnded` to the tray, which shows the game behind the status (`Status: Healthy (The Lost World: Jurassic Park - lostwsga)`, only the game name without `display-name`).
 4. `action_router` dispatches `GameEvent::Action` to light-controller or light-gun handlers, and `GameEvent::DeviceAction` (`enter_game`/`leave_game`) to every device that has the action.
 
-Game start/end order: `___teardown` (old game) → `leave_game` (old game name) → `enter_game` (new game name) → `___startup` (new game). A game ends on `mame_stop`, on TCP disconnect, on a new game, and on quit.
+Game start/end order: repeats stopped → `___teardown` (old game) → `leave_game` (old game name) → `enter_game` (new game name) → `___startup` (new game). A game ends on `mame_stop`, on TCP disconnect, on a new game, and on quit.
 
 ### Data files (device and game files)
 
@@ -95,12 +96,13 @@ Shipped device and game files live in the repository under `data/devices/` and `
 
 The shipped layer is never written. hof-blaze saves game files only to the user layer (`data_files::user_path`), so a changed shipped game file is copied to the user layer on its first save and overrides the shipped one from then on (copy on write). A game file that exists but fails to parse is loaded as a default config with `read_only = true` and is never saved over. When developing, note that game files changed by hof-blaze end up in the user layer, not in `data/games/`; copy them back to update the shipped files.
 
-The release package (`release.yml`) and the CI artifacts (`ci.yml`) contain `devices/` and `games/` (copied from `data/`), `README.md` and `LICENSE` next to the binaries. `crates/hof-blaze/src/data_check.rs` (test only) validates all files in `data/` with the real parsers: device files parse and their `name` matches the file name, game files parse, and every command used in a game file is an action of some shipped device file.
+The release package (`release.yml`) and the CI artifacts (`ci.yml`) contain `devices/` and `games/` (copied from `data/`), `README.md` and `LICENSE` next to the binaries. `crates/hof-blaze/src/data_check.rs` (test only) validates all files in `data/` with the real parsers: device files parse and their `name` matches the file name, game files parse and have a `display-name`, and every command used in a game file is an action of some shipped device file.
 
 ### Game configuration files
 
 Per-game YAML files (e.g. `lostwsga.yaml`, `dayto2pe.yaml`, see data files above). The file name is the game name received with `mame_start`/`game`. Schema:
 ```yaml
+display-name: "The Lost World: Jurassic Park"  # optional: title shown in the tray (required for shipped files)
 players:
   count: 2             # 1..=MAX_PLAYERS (4)
 suppression:           # optional: device types (lightgun | lightcontroller) or device names (e.g. openfire)
@@ -113,12 +115,15 @@ signals:
     commands: []
   - signal: P1_CtmRecoil
     player: 1          # 1..=players.count or ___all (default ___all)
+    repeat: 100        # optional: ms (10..=10000); while held (value not 0) repeat the commands
     commands:
       - recoil          # any string - must match an action defined in a device YAML
       - recoil_value
 ```
 
 Suppression is carried in `GameEvent::Action`/`DeviceAction` (`suppression`); the `action_router` treats suppressed devices as not configured (`DeviceRegistry::active_by_type`, `light_guns_for_player`, `has_action_for_type` take the list). The engine loads the game file before sending `enter_game`, so suppressed devices do not get it. Device-level `setup`/`teardown` are not affected.
+
+Signals with `repeat` (for games sending `1` while the trigger is held and `0` on release): on a value other than `0`/empty the engine sends the commands and `repeater.rs` schedules them every `repeat` ms (per signal entry index, drift-free, missed repeats skipped); further non-zero values only update `{VALUE}`, `0` stops without sending, game end clears all repeats, pause is ignored. The engine loop has a `select!` branch sleeping until the next due repeat. Repeated sends are logged at debug level. Signals without `repeat` send on every value, including `0`.
 
 If a game file is missing, the engine creates a default stub (incl. the fixed signals) in the user layer. Missing fixed signals are inserted into existing game files on load. Unknown signals received at runtime are appended to the file automatically (saved to the user layer).
 

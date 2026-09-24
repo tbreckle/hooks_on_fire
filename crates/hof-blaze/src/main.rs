@@ -9,6 +9,7 @@ mod engine;
 mod gamefile;
 mod line_processor;
 mod logging;
+mod repeater;
 mod serial;
 mod tcp_connector;
 mod tray;
@@ -192,9 +193,9 @@ impl Blaze {
                 line_tx_clone,
                 config.tcp_host.clone(),
                 config.tcp_port,
-                tray_tx,
+                tray_tx.clone(),
             )?;
-            let engine_handle = start_engine(state_rx, game_rx, action_tx)?;
+            let engine_handle = start_engine(state_rx, game_rx, action_tx, tray_tx)?;
             Ok((
                 tray_rx,
                 action_rx,

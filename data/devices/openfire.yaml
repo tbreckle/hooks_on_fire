@@ -9,7 +9,6 @@ device:
     speed: 115200
   max-instances: 4
   enter_game:
-    # setup:
     - M0x0 # Set device mode to Mouse & Keyboard.
     - S6 # Start with everything enabled.
     - F1x2x1 # Rumble shortly.
@@ -23,9 +22,6 @@ device:
     - M8x2 # Enable autofire.
   lightgun_disable_autofire:
     - M8x0 # Disable autofire.
-  # teardown:
-  #   - F2x2x1 # Pulse LED red once.
-  #   - E
   lightgun_recoil:
     - F0x2x1 # Pulse solenoid once.
   lightgun_reload:

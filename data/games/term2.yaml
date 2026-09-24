@@ -1,5 +1,6 @@
 ---
 # Game file for "Terminator 2: Judgment Day" (game name: term2).
+display-name: "Terminator 2: Judgment Day"
 players:
   count: 2
 signals:

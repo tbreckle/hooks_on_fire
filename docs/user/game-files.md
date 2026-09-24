@@ -27,6 +27,7 @@ To change a shipped game file that is not in your user folder yet, copy it from 
 ## Example
 
 ```yaml
+display-name: "The Lost World: Jurassic Park"
 players:
   count: 2
 signals:
@@ -59,11 +60,13 @@ signals:
 
 | Field | Description |
 |---|---|
+| `display-name` | Optional. Title of the game, shown in the [hof-blaze tray menu](hof-blaze.md#tray-icon). Put it in quotes if it contains a `:`. New game files do not have it; add it yourself. |
 | `players.count` | Number of players of the game (1–4). |
 | `suppression` | Optional. Devices that Hooks on Fire leaves alone for this game, see [suppression](#suppression). |
 | `signals` | List of signals. |
 | `signal` | Name of the signal as sent by the emulator, e.g. `P1_CtmRecoil`. |
 | `player` | Player the signal belongs to: `1`–`4`, or `___all` for all players. Default: `___all`. The number must not be higher than `players.count`. |
+| `repeat` | Optional. Repeat the commands every `repeat` milliseconds (10–10000) while the signal is held, see [repeating commands](#repeating-commands). |
 | `commands` | Names of the commands to send. Each name must be an action of a [device file](device-files.md), e.g. `recoil`. `[]` means: do nothing. |
 
 ## Which devices receive a command
@@ -83,6 +86,29 @@ light controllers receive it. Give such commands different names (e.g. `lamp_rec
 
 The value of the signal (e.g. `1` in `LampStart = 1`) is passed to the command as `{VALUE}`,
 see [placeholders](device-files.md#placeholders).
+
+## Repeating commands
+
+Most games send a recoil signal as a short pulse for every shot (`1`, then `0`). Some games
+instead send `1` when the trigger is pressed and `0` only when it is released, also for
+automatic fire. For such signals, add `repeat` with the interval in milliseconds:
+
+```yaml
+  - signal: P1_CtmRecoil
+    player: 1
+    repeat: 100
+    commands:
+      - lightgun_recoil
+```
+
+- When the signal gets a value other than `0` (the trigger is pressed), the commands are sent
+  at once and then again every `repeat` milliseconds. `{VALUE}` is the last value received.
+- Further values other than `0` while the trigger is held do not send anything extra.
+- `0` (the trigger is released) stops the repeating. The commands are not sent for `0`.
+- The repeating also stops when the game ends. A pause does not stop it.
+
+Without `repeat`, the commands are sent once for every value the game sends, including `0`.
+`repeat` cannot be used for `___startup` and `___teardown`.
 
 ## Suppression
 

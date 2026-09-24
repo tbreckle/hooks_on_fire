@@ -26,9 +26,17 @@ pub enum TrayExit {
 /// Connection status shown by the tray icon and the status menu item.
 #[derive(Clone, Copy, Debug)]
 enum TrayStatus {
+    Waiting,
     Healthy,
     Disconnected,
     Faulty,
+}
+
+/// Change passed from the Tokio runtime to the tray loop.
+enum TrayUpdate {
+    Status(TrayStatus),
+    /// Label of the running game (`None`: no game running).
+    Game(Option<String>),
 }
 
 /// Builds a tray `Icon` from the embedded PNG.
@@ -44,6 +52,9 @@ fn load_icon(icon_bytes: &[u8]) -> Result<Icon> {
 struct Tray {
     icon: TrayIcon,
     status_item: MenuItem,
+    status: TrayStatus,
+    /// Label of the running game (see `game_label`), shown in brackets behind the status.
+    game: Option<String>,
 }
 
 impl Tray {
@@ -90,22 +101,47 @@ impl Tray {
             .build()
             .context("Failed to build tray icon")?;
 
-        Ok(Self { icon, status_item })
+        Ok(Self {
+            icon,
+            status_item,
+            status: TrayStatus::Waiting,
+            game: None,
+        })
     }
 
-    fn set_status(&self, status: TrayStatus) {
-        let (icon_bytes, text) = match status {
-            TrayStatus::Healthy => (ICON_BYTES_HEALTHY, "Status: Healthy"),
-            TrayStatus::Disconnected => (ICON_BYTES_WAITING, "Status: Disconnected"),
-            TrayStatus::Faulty => (ICON_BYTES_FAULTY, "Status: Faulty"),
+    fn update(&mut self, update: TrayUpdate) {
+        match update {
+            TrayUpdate::Status(status) => {
+                self.status = status;
+                let icon_bytes = match status {
+                    TrayStatus::Waiting | TrayStatus::Disconnected => ICON_BYTES_WAITING,
+                    TrayStatus::Healthy => ICON_BYTES_HEALTHY,
+                    TrayStatus::Faulty => ICON_BYTES_FAULTY,
+                };
+                if let Err(err) = load_icon(icon_bytes).and_then(|icon| {
+                    self.icon
+                        .set_icon(Some(icon))
+                        .context("Failed to set tray icon")
+                }) {
+                    warn!("Failed to update tray icon: {err:#}");
+                }
+            }
+            TrayUpdate::Game(game) => self.game = game,
+        }
+        self.status_item.set_text(self.status_text());
+    }
+
+    /// Status menu text, e.g. `Status: Healthy (The Lost World: Jurassic Park - lostwsga)`.
+    fn status_text(&self) -> String {
+        let status = match self.status {
+            TrayStatus::Waiting => "Waiting",
+            TrayStatus::Healthy => "Healthy",
+            TrayStatus::Disconnected => "Disconnected",
+            TrayStatus::Faulty => "Faulty",
         };
-        match load_icon(icon_bytes).and_then(|icon| {
-            self.icon
-                .set_icon(Some(icon))
-                .context("Failed to set tray icon")
-        }) {
-            Ok(()) => self.status_item.set_text(text),
-            Err(err) => warn!("Failed to update tray icon: {err:#}"),
+        match &self.game {
+            Some(game) => format!("Status: {status} ({game})"),
+            None => format!("Status: {status}"),
         }
     }
 
@@ -153,19 +189,28 @@ fn open_log_file() {
     }
 }
 
+/// Label of a running game for the status menu item: the game file's `display-name` followed
+/// by the game name received from the emulator, or only the game name.
+fn game_label(name: &str, display_name: Option<&str>) -> String {
+    match display_name {
+        Some(display_name) if display_name != name => format!("{display_name} - {name}"),
+        _ => name.to_string(),
+    }
+}
+
 /// Receives `TrayEvent`s on the Tokio runtime, shows notifications and passes the new status
-/// to the tray loop via `set_status`.
+/// to the tray loop via `update`.
 fn spawn_event_forwarder(
     runtime: &tokio::runtime::Handle,
     mut rx: tokio::sync::mpsc::Receiver<TrayEvent>,
-    set_status: impl Fn(TrayStatus) + Send + 'static,
+    update: impl Fn(TrayUpdate) + Send + 'static,
 ) {
     runtime.spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
                 TrayEvent::StatusConnected { host, port } => {
                     info!("Remote connected: {}:{}", host, port);
-                    set_status(TrayStatus::Healthy);
+                    update(TrayUpdate::Status(TrayStatus::Healthy));
                     let _ = notify_rust::Notification::new()
                         .summary("HoF-blaze connected")
                         .body(&format!("Connected to: {}:{}", host, port))
@@ -173,15 +218,22 @@ fn spawn_event_forwarder(
                 }
                 TrayEvent::StatusDisconnected => {
                     info!("Game disconnected.");
-                    set_status(TrayStatus::Disconnected);
+                    update(TrayUpdate::Status(TrayStatus::Disconnected));
                     let _ = notify_rust::Notification::new()
                         .summary("HoF-blaze disconnected")
                         .show();
                 }
                 TrayEvent::StatusFaulty { error } => {
                     warn!("Game status faulty: {}", error);
-                    set_status(TrayStatus::Faulty);
+                    update(TrayUpdate::Status(TrayStatus::Faulty));
                 }
+                TrayEvent::GameStarted { name, display_name } => {
+                    update(TrayUpdate::Game(Some(game_label(
+                        &name,
+                        display_name.as_deref(),
+                    ))));
+                }
+                TrayEvent::GameEnded => update(TrayUpdate::Game(None)),
             }
         }
     });
@@ -206,11 +258,11 @@ pub fn run(
 
     gtk::init().context("Failed to initialize GTK")?;
 
-    let tray = Tray::build(version_string)?;
+    let mut tray = Tray::build(version_string)?;
 
-    let (status_tx, status_rx) = mpsc::channel::<TrayStatus>();
-    spawn_event_forwarder(runtime, rx, move |status| {
-        let _ = status_tx.send(status);
+    let (update_tx, update_rx) = mpsc::channel::<TrayUpdate>();
+    spawn_event_forwarder(runtime, rx, move |update| {
+        let _ = update_tx.send(update);
     });
 
     // Poll status updates and menu events on the GTK main thread.
@@ -218,8 +270,8 @@ pub fn run(
     let exit = Rc::new(RefCell::new(TrayExit::Exit));
     let exit_clone = Rc::clone(&exit);
     gtk::glib::timeout_add_local(Duration::from_millis(100), move || {
-        while let Ok(status) = status_rx.try_recv() {
-            tray.set_status(status);
+        while let Ok(update) = update_rx.try_recv() {
+            tray.update(update);
         }
         while let Ok(event) = menu_receiver.try_recv() {
             if let Some(tray_exit) = tray.handle_menu_event(&event) {
@@ -254,7 +306,7 @@ pub fn run(
 
     /// Wakes up the event loop from other threads.
     enum UserEvent {
-        Status(TrayStatus),
+        Update(TrayUpdate),
         Menu(MenuEvent),
     }
 
@@ -290,11 +342,11 @@ pub fn run(
         }
 
         fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
-            let Some(tray) = &self.tray else {
+            let Some(tray) = &mut self.tray else {
                 return;
             };
             match event {
-                UserEvent::Status(status) => tray.set_status(status),
+                UserEvent::Update(update) => tray.update(update),
                 UserEvent::Menu(event) => {
                     if let Some(exit) = tray.handle_menu_event(&event) {
                         self.exit = exit;
@@ -320,8 +372,8 @@ pub fn run(
         let _ = proxy.send_event(UserEvent::Menu(event));
     }));
     let proxy = event_loop.create_proxy();
-    spawn_event_forwarder(runtime, rx, move |status| {
-        let _ = proxy.send_event(UserEvent::Status(status));
+    spawn_event_forwarder(runtime, rx, move |update| {
+        let _ = proxy.send_event(UserEvent::Update(update));
     });
 
     let mut app = TrayApp {
@@ -334,4 +386,19 @@ pub fn run(
     // Stop sending menu events to the closed event loop.
     MenuEvent::set_event_handler(None::<fn(MenuEvent)>);
     app.result.map(|()| app.exit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn game_label_shows_display_name_and_game_name() {
+        assert_eq!(
+            game_label("lostwsga", Some("The Lost World: Jurassic Park")),
+            "The Lost World: Jurassic Park - lostwsga"
+        );
+        assert_eq!(game_label("lostwsga", None), "lostwsga");
+        assert_eq!(game_label("jp", Some("jp")), "jp");
+    }
 }

@@ -1,5 +1,6 @@
 ---
 # Game file for "Daytona USA 2: Power Edition" (game name: dayto2pe).
+display-name: "Daytona USA 2: Power Edition"
 players:
   count: 2
 signals:
@@ -30,8 +31,7 @@ signals:
     commands: []
   - signal: LampLeader
     player: ___all
-    commands:
-      - lamp_cabinet
+    commands: []
   - signal: RawLamps
     player: ___all
     commands: []

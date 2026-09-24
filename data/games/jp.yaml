@@ -1,5 +1,6 @@
 ---
 # Game file for "Jurassic Park" (game name: jp).
+display-name: "Jurassic Park (2015)"
 players:
   count: 2
 signals:

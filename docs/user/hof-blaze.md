@@ -25,6 +25,11 @@ problem and hof-blaze exits when you press *OK*. See [troubleshooting](troublesh
 | Healthy | `Status: Healthy` | Connected to the emulator. |
 | Faulty | `Status: Faulty` | The connection to the emulator failed with an error. |
 
+While a game is running, it is shown in brackets behind the status: the `display-name` from
+its [game file](game-files.md) and the game name sent by the emulator, for example
+`Status: Healthy (The Lost World: Jurassic Park - lostwsga)`. Without `display-name`, only the
+game name is shown.
+
 A notification is also shown when the connection to the emulator is established or lost.
 
 The tray menu also has:

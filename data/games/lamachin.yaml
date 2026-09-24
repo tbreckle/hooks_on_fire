@@ -1,5 +1,6 @@
 ---
 # Game file for "L.A. Machineguns: Rage of the Machines" (game name: lamachin).
+display-name: "L.A. Machineguns: Rage of the Machines"
 players:
   count: 2
 signals:
@@ -26,6 +27,7 @@ signals:
       - lamp_start
   - signal: LampView2
     player: 1
+    repeat: 250
     commands:
       - lightgun_recoil
   - signal: LampView3

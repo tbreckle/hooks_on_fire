@@ -1,5 +1,6 @@
 ---
 # Game file for "The Ocean Hunter" (game name: oceanhuna).
+display-name: "The Ocean Hunter"
 players:
   count: 2
 signals:

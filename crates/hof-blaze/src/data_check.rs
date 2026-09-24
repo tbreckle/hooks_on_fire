@@ -67,6 +67,9 @@ fn shipped_game_files_are_valid() {
                 continue;
             }
         };
+        if config.display_name.is_none() {
+            problems.push(format!("{}: 'display-name' is missing", path.display()));
+        }
         // Every suppression entry must be a device type or the name of a shipped device.
         for entry in &config.suppression {
             let known = ["lightgun", "lightcontroller"].contains(&entry.as_str())

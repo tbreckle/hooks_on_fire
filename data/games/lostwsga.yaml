@@ -1,5 +1,6 @@
 ---
 # Game file for "The Lost World: Jurassic Park" (game name: lostwsga).
+display-name: "The Lost World: Jurassic Park"
 players:
   count: 2
 # The light guns stay in standalone mode: Hooks on Fire sends them nothing for this game.
