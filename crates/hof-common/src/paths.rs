@@ -24,6 +24,17 @@ pub fn exe_dir() -> Option<PathBuf> {
         .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
 }
 
+/// Path of the executable `name` (e.g. `hof-forge`) in the folder of the running executable,
+/// if it exists there.
+pub fn sibling_exe(name: &str) -> Result<PathBuf> {
+    let dir = exe_dir().context("Could not determine the program folder")?;
+    let path = dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+    if !path.is_file() {
+        anyhow::bail!("{name} not found: {}", path.display());
+    }
+    Ok(path)
+}
+
 /// File name of the hof-blaze log file.
 pub const BLAZE_LOG_FILE: &str = "hof-blaze.log";
 

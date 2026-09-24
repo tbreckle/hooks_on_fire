@@ -6,13 +6,13 @@ signals:
   - signal: ___startup
     player: ___all
     commands:
-      - enable_autofire
+      - lightgun_enable_autofire
       - lamp_generic
       - lamp_coin
   - signal: ___teardown
     player: ___all
     commands:
-      - disable_autofire
+      - lightgun_disable_autofire
   - signal: RawDrive
     player: ___all
     commands: []
@@ -27,7 +27,7 @@ signals:
   - signal: LampView2
     player: 1
     commands:
-      - recoil
+      - lightgun_recoil
   - signal: LampView3
     player: ___all
     commands: []

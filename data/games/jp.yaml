@@ -1,0 +1,111 @@
+---
+# Game file for "Jurassic Park" (game name: jp).
+players:
+  count: 2
+signals:
+  - signal: ___startup
+    player: ___all
+    commands: []
+  - signal: ___teardown
+    player: ___all
+    commands: []
+  - signal: P1_LmpStart
+    player: ___all
+    commands: []
+  - signal: P2_LmpStart
+    player: ___all
+    commands: []
+  - signal: LmpDinoHead
+    player: ___all
+    commands: []
+  - signal: LmpLogo
+    player: ___all
+    commands: []
+  - signal: LmpDinoEyes
+    player: ___all
+    commands: []
+  - signal: LmpRoof
+    player: ___all
+    commands: []
+  - signal: LmpMarquee
+    player: ___all
+    commands: []
+  - signal: LmpDash
+    player: ___all
+    commands: []
+  - signal: LmpFoliage
+    player: ___all
+    commands: []
+  - signal: P1_LmpGun_R
+    player: ___all
+    commands: []
+  - signal: P1_LmpGun_G
+    player: ___all
+    commands: []
+  - signal: P1_LmpGun_B
+    player: ___all
+    commands: []
+  - signal: P2_LmpGun_R
+    player: ___all
+    commands: []
+  - signal: P2_LmpGun_G
+    player: ___all
+    commands: []
+  - signal: P2_LmpGun_B
+    player: ___all
+    commands: []
+  - signal: LmpSeat_R
+    player: ___all
+    commands: []
+  - signal: LmpSeat_G
+    player: ___all
+    commands: []
+  - signal: LmpSeat_B
+    player: ___all
+    commands: []
+  - signal: LmpBenchLogo
+    player: ___all
+    commands: []
+  - signal: P1_LmpHolder
+    player: ___all
+    commands: []
+  - signal: P2_LmpHolder
+    player: ___all
+    commands: []
+  - signal: LmpSeatBase
+    player: ___all
+    commands: []
+  - signal: LmpEstop
+    player: ___all
+    commands: []
+  - signal: LmpCompressor
+    player: ___all
+    commands: []
+  - signal: P1_Ammo
+    player: ___all
+    commands: []
+  - signal: P2_Ammo
+    player: ___all
+    commands: []
+  - signal: P1_CtmRecoil
+    player: 1
+    commands:
+      - lightgun_recoil
+  - signal: P2_CtmRecoil
+    player: 2
+    commands:
+      - lightgun_recoil
+  - signal: P1_Life
+    player: ___all
+    commands: []
+  - signal: P2_Life
+    player: ___all
+    commands: []
+  - signal: P1_Damaged
+    player: 1
+    commands:
+      - lightgun_damage
+  - signal: P2_Damaged
+    player: 2
+    commands:
+      - lightgun_damage

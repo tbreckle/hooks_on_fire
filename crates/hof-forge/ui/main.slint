@@ -67,6 +67,7 @@ export component MainWindow inherits Window {
     callback settings-saved();
     callback open-log();
     callback open-games-folder();
+    callback switch-to-blaze();
 
     function focus-tab-content() {
         if tabs.current-index == 1 {
@@ -101,6 +102,8 @@ export component MainWindow inherits Window {
                 root.open-log();
             } else if event.text == "g" || event.text == "G" {
                 root.open-games-folder();
+            } else if event.text == "b" || event.text == "B" {
+                root.switch-to-blaze();
             } else {
                 return reject;
             }
@@ -117,6 +120,7 @@ export component MainWindow inherits Window {
                     overview-error: root.overview-error;
                     open-log-clicked() => { root.open-log(); }
                     open-games-clicked() => { root.open-games-folder(); }
+                    switch-to-blaze-clicked() => { root.switch-to-blaze(); }
                 }
             }
 

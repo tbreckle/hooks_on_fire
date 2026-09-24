@@ -1,6 +1,6 @@
 use hof_common::events::{GameEvent, LineEvent, StateEvent};
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub async fn run_line_processor(
     mut rx: mpsc::Receiver<LineEvent>,
@@ -23,6 +23,17 @@ pub async fn run_line_processor(
                     &game_tx,
                 )
                 .await;
+            }
+            LineEvent::Disconnected => {
+                // The source closed the connection without sending `mame_stop`.
+                if let Some(name) = game_name.take() {
+                    info!(
+                        "Connection lost while '{}' was running. Stopping game.",
+                        name
+                    );
+                    game_running = false;
+                    let _ = state_tx.send(StateEvent::GameStopped).await;
+                }
             }
         }
     }
@@ -90,6 +101,7 @@ async fn process_key(
         "mame_stop" => {
             debug!("Stopping game.");
             *game_running = false;
+            *game_name = None;
             let _ = state_tx.send(StateEvent::GameStopped).await;
         }
         "pause" => {
@@ -109,5 +121,55 @@ async fn process_key(
                 })
                 .await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Feeds `events` to the line processor and returns the state events it sent.
+    async fn state_events(events: Vec<LineEvent>) -> Vec<StateEvent> {
+        let (line_tx, line_rx) = mpsc::channel(32);
+        let (state_tx, mut state_rx) = mpsc::channel(32);
+        let (game_tx, _game_rx) = mpsc::channel(32);
+        for event in events {
+            line_tx.send(event).await.unwrap();
+        }
+        drop(line_tx);
+        run_line_processor(line_rx, state_tx, game_tx).await;
+        let mut result = Vec::new();
+        while let Ok(event) = state_rx.try_recv() {
+            result.push(event);
+        }
+        result
+    }
+
+    fn line(line: &str) -> LineEvent {
+        LineEvent::NewLine { line: line.into() }
+    }
+
+    #[tokio::test]
+    async fn disconnect_stops_running_game() {
+        let events = state_events(vec![line("mame_start=lostwsga"), LineEvent::Disconnected]).await;
+        assert!(matches!(
+            events.as_slice(),
+            [StateEvent::NewGame { .. }, StateEvent::GameStopped]
+        ));
+    }
+
+    #[tokio::test]
+    async fn disconnect_without_running_game_is_ignored() {
+        let events = state_events(vec![
+            LineEvent::Disconnected,
+            line("mame_start=lostwsga"),
+            line("mame_stop=1"),
+            LineEvent::Disconnected,
+        ])
+        .await;
+        assert!(matches!(
+            events.as_slice(),
+            [StateEvent::NewGame { .. }, StateEvent::GameStopped]
+        ));
     }
 }

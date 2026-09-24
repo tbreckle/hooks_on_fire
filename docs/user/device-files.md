@@ -65,7 +65,7 @@ These actions are sent by Hooks on Fire itself. All of them are optional.
 
 `setup` and `teardown` are sent to every device when hof-blaze starts and exits.
 `enter_game` and `leave_game` are sent to every device that defines them, regardless of its
-type and player.
+type and player, unless the game file [suppresses](game-files.md#suppression) the device.
 
 ## Placeholders
 

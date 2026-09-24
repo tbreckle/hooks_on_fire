@@ -38,7 +38,7 @@ sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev lib
 ### Logging
 Set `RUST_LOG=debug` (or `trace`, `info`) to control log verbosity. Default is `info`.
 
-hof-blaze logs to the console and to `logs/hof-blaze.log` next to the executable (fallback: `logs/` in the config directory, see `hof_common::paths::log_dirs`). The file is truncated on every start and written via a non-blocking `tracing-appender` worker, so lines reach the file immediately. Panics are logged too. On Windows hof-blaze is built with `windows_subsystem = "windows"` (no console), so the log file is the only output there.
+hof-blaze logs to the console and to `logs/hof-blaze.log` next to the executable (fallback: `logs/` in the config directory, see `hof_common::paths::log_dirs`). The file is truncated on every start and written via a non-blocking `tracing-appender` worker, so lines reach the file immediately. Panics are logged too. The tray menu entry "Open log file" opens the file written by this process (`logging::log_file()`) with the OS default program (`open` crate). On Windows hof-blaze is built with `windows_subsystem = "windows"` (no console), so the log file is the only output there.
 
 Log level conventions: `info`/`debug` show what is happening; anything that indicates a problem uses `warn`/`error`.
 
@@ -79,12 +79,12 @@ UDP (udp_receiver) ───┘                                └──► Game
                                                                                      (lightgun / lightcontroller / all devices)
 ```
 
-1. `tcp_connector` and `udp_receiver` receive newline-delimited `key=value` messages and send them as `LineEvent::NewLine` on a Tokio `mpsc` channel. While nothing is listening on the TCP port (connection refused), the connector retries every second but only logs "Waiting for connection" every 10 seconds.
-2. `line_processor` parses lines: special keys (`mame_start`/`game`, `mame_stop`, `pause`) become `StateEvent`; everything else becomes `GameEvent::Data`. `mame_start=___empty` is ignored.
+1. `tcp_connector` and `udp_receiver` receive newline-delimited `key=value` messages and send them as `LineEvent::NewLine` on a Tokio `mpsc` channel. While nothing is listening on the TCP port (connection refused), the connector retries every second but only logs "Waiting for connection" every 10 seconds. When an established connection ends (closed, reset or aborted by the source), the connector sends `LineEvent::Disconnected` and reconnects; a reset/abort is a normal disconnect, not the faulty tray state.
+2. `line_processor` parses lines: special keys (`mame_start`/`game`, `mame_stop`, `pause`) become `StateEvent`; everything else becomes `GameEvent::Data`. `mame_start=___empty` is ignored. `LineEvent::Disconnected` becomes `StateEvent::GameStopped` if a game is running (TeknoParrot/OutputBlaster quits without `mame_stop`).
 3. `engine` holds the active `GameConfig` (loaded from a per-game YAML file, e.g. `lostwsga.yaml`) and the current game name. On `StateEvent::NewGame` it ends the previous game, loads/creates the game file and starts the new one. On `GameEvent::Data` it matches against configured signals and emits `GameEvent::Action` events. It also collects data event statistics (`data_stats.rs`) that are logged on shutdown.
 4. `action_router` dispatches `GameEvent::Action` to light-controller or light-gun handlers, and `GameEvent::DeviceAction` (`enter_game`/`leave_game`) to every device that has the action.
 
-Game start/end order: `___teardown` (old game) → `leave_game` (old game name) → `enter_game` (new game name) → `___startup` (new game). A game ends on `mame_stop`, on a new game, and on quit.
+Game start/end order: `___teardown` (old game) → `leave_game` (old game name) → `enter_game` (new game name) → `___startup` (new game). A game ends on `mame_stop`, on TCP disconnect, on a new game, and on quit.
 
 ### Data files (device and game files)
 
@@ -103,6 +103,8 @@ Per-game YAML files (e.g. `lostwsga.yaml`, `dayto2pe.yaml`, see data files above
 ```yaml
 players:
   count: 2             # 1..=MAX_PLAYERS (4)
+suppression:           # optional: device types (lightgun | lightcontroller) or device names (e.g. openfire)
+  - lightgun           #   that get nothing for this game, not even enter_game/leave_game
 signals:
   - signal: ___startup   # fixed signal, fired when the game starts
     commands:
@@ -115,6 +117,8 @@ signals:
       - recoil          # any string - must match an action defined in a device YAML
       - recoil_value
 ```
+
+Suppression is carried in `GameEvent::Action`/`DeviceAction` (`suppression`); the `action_router` treats suppressed devices as not configured (`DeviceRegistry::active_by_type`, `light_guns_for_player`, `has_action_for_type` take the list). The engine loads the game file before sending `enter_game`, so suppressed devices do not get it. Device-level `setup`/`teardown` are not affected.
 
 If a game file is missing, the engine creates a default stub (incl. the fixed signals) in the user layer. Missing fixed signals are inserted into existing game files on load. Unknown signals received at runtime are appended to the file automatically (saved to the user layer).
 
@@ -184,7 +188,9 @@ Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_
 
 ### Instance locking
 
-`hof-blaze` and `hof-forge` are mutually exclusive: each acquires a lock and blocks the other from starting (lock files in the system temp directory, e.g. `/tmp`).
+`hof-blaze` and `hof-forge` are mutually exclusive: each acquires a lock and blocks the other from starting (lock files in the system temp directory, e.g. `/tmp`). With the command line flag `--wait-for-lock` (`instance_lock::lock_wait_from_args`), a tool waits up to 3 s for the other's lock, checking every 50 ms.
+
+Switching: the hof-blaze tray entry "Open HoF-forge" and the hof-forge Overview button "Switch to hof-blaze" (`Ctrl+B`, saves the Settings tab first) start the other tool from the same folder (`paths::sibling_exe`, `switch::launch`, which passes `--wait-for-lock`). The other tool is started only after the own shutdown is complete and the lock is released: hof-blaze after `Blaze::shutdown()` (`tray::run` returns `TrayExit::SwitchToForge`), hof-forge after `window.run()` returns. In development both binaries must be built (`cargo build --workspace`).
 
 ### Build-time metadata
 

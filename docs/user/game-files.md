@@ -60,6 +60,7 @@ signals:
 | Field | Description |
 |---|---|
 | `players.count` | Number of players of the game (1–4). |
+| `suppression` | Optional. Devices that Hooks on Fire leaves alone for this game, see [suppression](#suppression). |
 | `signals` | List of signals. |
 | `signal` | Name of the signal as sent by the emulator, e.g. `P1_CtmRecoil`. |
 | `player` | Player the signal belongs to: `1`–`4`, or `___all` for all players. Default: `___all`. The number must not be higher than `players.count`. |
@@ -82,6 +83,27 @@ light controllers receive it. Give such commands different names (e.g. `lamp_rec
 
 The value of the signal (e.g. `1` in `LampStart = 1`) is passed to the command as `{VALUE}`,
 see [placeholders](device-files.md#placeholders).
+
+## Suppression
+
+Use `suppression` to leave devices alone for one game, for example to keep the light guns in
+standalone mode while Hooks on Fire only drives the cabinet lamps:
+
+```yaml
+players:
+  count: 2
+suppression:
+  - lightgun
+signals:
+  ...
+```
+
+Each entry is either a device type (`lightgun` or `lightcontroller`) or a device name, i.e. the
+`name` of a [device file](device-files.md) such as `openfire` or `blast`. While the game runs,
+the suppressed devices get no commands at all, not even `enter_game` / `leave_game`; they are
+treated as if they were not configured. So if the player's own gun is suppressed by its device
+name, a gun without an assigned player receives that player's commands instead.
+The `setup` / `teardown` commands sent when hof-blaze starts and exits are not affected.
 
 ## Fixed signals
 

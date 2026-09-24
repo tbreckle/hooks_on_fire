@@ -5,6 +5,7 @@ export component OverviewTab inherits VerticalLayout {
 
     callback open-log-clicked();
     callback open-games-clicked();
+    callback switch-to-blaze-clicked();
 
     padding: 24px;
     spacing: 16px;
@@ -54,18 +55,24 @@ export component OverviewTab inherits VerticalLayout {
     }
 
     Text {
-        text: "hof-forge and hof-blaze cannot run at the same time. Stop hof-blaze before opening Forge.";
+        text: "hof-forge and hof-blaze cannot run at the same time. Switch between them with the button below, or with Open HoF-forge in the hof-blaze tray menu.";
         wrap: word-wrap;
     }
 
     Text {
-        text: "Log";
+        text: "Misc";
         font-size: 14px;
         font-weight: 700;
     }
 
     HorizontalLayout {
         spacing: 12px;
+
+        Button {
+            text: "Switch to hof-blaze  (Ctrl+B)";
+            primary: true;
+            clicked => { root.switch-to-blaze-clicked(); }
+        }
 
         Button {
             text: "\u{1F4C4}  Open hof-blaze log  (Ctrl+L)";
@@ -94,7 +101,7 @@ export component OverviewTab inherits VerticalLayout {
             text: "Hooks on Fire is released under the MIT License. Its user interface is made with Slint, used under the Slint Royalty-free Desktop, Mobile, and Web Applications License 2.0.";
             wrap: word-wrap;
             font-size: 11px;
-            vertical-alignment: center;
+            vertical-alignment: bottom;
             horizontal-stretch: 1;
         }
 

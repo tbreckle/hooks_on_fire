@@ -2002,6 +2002,7 @@ dependencies = [
  "image",
  "libappindicator",
  "notify-rust",
+ "open",
  "rfd",
  "serde",
  "serde_yaml",

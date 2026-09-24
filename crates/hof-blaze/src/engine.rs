@@ -110,7 +110,7 @@ async fn end_current_game(
     if let Some(cfg) = current_config.take() {
         info!("Tearing down current game.");
         send_signal_actions(&cfg, current_game, TEARDOWN_SIGNAL, "", action_tx).await;
-        send_device_action(LEAVE_GAME_ACTION, current_game, action_tx).await;
+        send_device_action(LEAVE_GAME_ACTION, current_game, &cfg.suppression, action_tx).await;
     }
 }
 
@@ -130,7 +130,6 @@ async fn handle_new_game(
     end_current_game(current_config, current_game, action_tx).await;
 
     *current_game = game_name.to_string();
-    send_device_action(ENTER_GAME_ACTION, game_name, action_tx).await;
     // Load the game file: user layer first, then the shipped game files.
     let config = match data_files::find(DataKind::Games, game_name) {
         Some(path) => {
@@ -189,6 +188,14 @@ async fn handle_new_game(
         config.players.count,
         config.signals.len()
     );
+    if !config.suppression.is_empty() {
+        info!(
+            "Suppressed devices for this game: {}",
+            config.suppression.join(", ")
+        );
+    }
+    // The game file is needed first: suppressed devices get no `enter_game` either.
+    send_device_action(ENTER_GAME_ACTION, game_name, &config.suppression, action_tx).await;
     send_signal_actions(&config, game_name, STARTUP_SIGNAL, "", action_tx).await;
     *current_config = Some(config);
 }
@@ -197,12 +204,14 @@ async fn handle_new_game(
 async fn send_device_action(
     action: &str,
     game: &str,
+    suppression: &[String],
     action_tx: &tokio::sync::mpsc::Sender<GameEvent>,
 ) {
     let _ = action_tx
         .send(GameEvent::DeviceAction {
             action: action.to_string(),
             game: game.to_string(),
+            suppression: suppression.to_vec(),
         })
         .await;
 }
@@ -248,6 +257,7 @@ async fn send_signal_actions(
                 value,
                 player,
                 game: game.to_string(),
+                suppression: cfg.suppression.clone(),
             })
             .await;
     }

@@ -3,7 +3,8 @@
 hof-blaze is the program that runs while you play. It places an icon in the system tray and
 shows a notification *Blaze started*.
 
-hof-blaze cannot run while hof-forge is running. Close hof-forge first.
+hof-blaze cannot run while hof-forge is running. To switch from hof-forge to hof-blaze, use
+*Switch to hof-blaze* on the [Overview tab](hof-forge.md#overview-tab) of hof-forge.
 
 ## What happens on start
 
@@ -26,7 +27,17 @@ problem and hof-blaze exits when you press *OK*. See [troubleshooting](troublesh
 
 A notification is also shown when the connection to the emulator is established or lost.
 
+The tray menu also has:
+
+- **Open HoF-forge**: exits hof-blaze (see [what happens on exit](#what-happens-on-exit)) and
+  starts [hof-forge](hof-forge.md) to change the configuration.
+- **Open log file**: opens the [log file](#log-file) with your system's default program.
+
 To quit, choose **Exit** in the tray menu.
+
+hof-blaze and hof-forge must be in the same folder for switching between them. When one is
+started by the other, it waits up to 3 seconds for the other one to exit (command line option
+`--wait-for-lock`; you can use it yourself as well, for example in a start script).
 
 ## During a game
 
@@ -61,8 +72,8 @@ that folder is not writable, the log is written to a `logs` folder next to the
 [user folder](installation.md#your-files) instead. The log file is emptied every time
 hof-blaze starts.
 
-Open it with the *Open hof-blaze log* button in [hof-forge](hof-forge.md#overview-tab)
-(`Ctrl+L`).
+While hof-blaze is running, open it with **Open log file** in the tray menu. Otherwise use the
+*Open hof-blaze log* button in [hof-forge](hof-forge.md#overview-tab) (`Ctrl+L`).
 
 The log shows every signal received and every command sent to a device. For even more
 detail, start hof-blaze with the environment variable `RUST_LOG=debug`.

@@ -28,11 +28,11 @@ signals:
   - signal: LampView4
     player: 1
     commands:
-      - recoil
+      - lightgun_recoil
   - signal: LampLeader
     player: 2
     commands:
-      - recoil
+      - lightgun_recoil
   - signal: RawLamps
     player: ___all
     commands: []

@@ -4,4 +4,5 @@ pub mod data_files;
 pub mod events;
 pub mod instance_lock;
 pub mod paths;
+pub mod switch;
 pub mod usb;

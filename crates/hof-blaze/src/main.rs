@@ -20,14 +20,15 @@ use anyhow::Context;
 
 use hof_common::config::HofConfig;
 use hof_common::events::LineEvent;
-use hof_common::instance_lock::InstanceLock;
-use hof_common::{build_info, events::TrayEvent};
+use hof_common::instance_lock::{self, InstanceLock};
+use hof_common::{build_info, events::TrayEvent, switch};
 use tracing::{debug, error, info, warn};
 
-use crate::devices::{DeviceRegistry, DeviceType};
+use crate::devices::{Device, DeviceRegistry, DeviceType};
 use crate::engine::{start_engine, EngineHandle};
 use crate::serial::SerialManager;
 use crate::tcp_connector::{start_tcp_connector, TcpConnectorHandle};
+use crate::tray::TrayExit;
 use crate::udp_receiver::{start_udp_receiver, UdpReceiverHandle};
 use hof_common::events::{GameEvent, StateEvent};
 use tokio::sync::mpsc;
@@ -43,7 +44,7 @@ fn main() -> anyhow::Result<()> {
         Ok(runtime) => runtime,
         Err(err) => {
             error!("hof-blaze failed to start: {err:#}");
-            show_startup_error(&err);
+            show_error("Hooks on Fire - Blaze could not start", &err);
             return Err(err);
         }
     };
@@ -52,7 +53,7 @@ fn main() -> anyhow::Result<()> {
         Ok(blaze) => blaze,
         Err(err) => {
             error!("hof-blaze failed to start: {err:#}");
-            show_startup_error(&err);
+            show_error("Hooks on Fire - Blaze could not start", &err);
             return Err(err);
         }
     };
@@ -73,18 +74,26 @@ fn main() -> anyhow::Result<()> {
         error!("Tray failed: {err:#}");
     }
 
-    let result = runtime.block_on(blaze.shutdown()).and(tray_result);
+    // Shutting down releases the instance lock, so hof-forge is started only afterwards.
+    let result = runtime.block_on(blaze.shutdown());
+    if let Ok(TrayExit::SwitchToForge(path)) = &tray_result {
+        if let Err(err) = switch::launch(path) {
+            error!("Failed to start hof-forge: {err:#}");
+            show_error("Hooks on Fire - Forge could not start", &err);
+        }
+    }
+    let result = result.and(tray_result.map(|_| ()));
     if let Err(err) = &result {
         error!("hof-blaze stopped with an error: {err:#}");
     }
     result
 }
 
-/// Shows a startup error in a message box and waits until the user presses OK.
+/// Shows an error in a message box and waits until the user presses OK.
 ///
-/// Must only be called before the tray is started: on Linux both use GTK, which must not be
+/// Must not be called while the tray is running: on Linux both use GTK, which must not be
 /// driven from two threads.
-fn show_startup_error(err: &anyhow::Error) {
+fn show_error(title: &str, err: &anyhow::Error) {
     // Without a display GTK cannot start and the dialog would block forever (e.g. over SSH).
     #[cfg(target_os = "linux")]
     if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
@@ -93,7 +102,7 @@ fn show_startup_error(err: &anyhow::Error) {
 
     rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Error)
-        .set_title("Hooks on Fire - Blaze could not start")
+        .set_title(title)
         .set_description(format!("{err:#}"))
         .set_buttons(rfd::MessageButtons::Ok)
         .show();
@@ -141,7 +150,11 @@ impl Blaze {
         info!("hof-blaze {version_string}");
 
         // Make sure only one instance of the application is running.
-        let lock = InstanceLock::acquire("hof-blaze", "hof-forge")?;
+        let lock = InstanceLock::acquire(
+            "hof-blaze",
+            "hof-forge",
+            instance_lock::lock_wait_from_args(),
+        )?;
 
         let config = HofConfig::load()?;
         info!("Configuration loaded.");
@@ -264,12 +277,15 @@ async fn run_action_router(
                 value,
                 player,
                 game,
+                suppression,
             } => {
                 // "___all" (not a number) addresses all players; {PLAYER} then becomes 0.
                 let target_player: Option<u8> = player.parse().ok();
                 let player_param = target_player.map_or("0".to_string(), |p| p.to_string());
 
-                if devices.has_action_for_type(&action, &DeviceType::LightController) {
+                // Devices suppressed by the game count as not configured.
+                if devices.has_action_for_type(&action, &DeviceType::LightController, &suppression)
+                {
                     handle_lightcontroller_action(
                         &devices,
                         &serial,
@@ -277,16 +293,22 @@ async fn run_action_router(
                         &value,
                         &player_param,
                         &game,
+                        &suppression,
                     );
-                } else if devices.has_action_for_type(&action, &DeviceType::LightGun) {
+                } else if devices.has_action_for_type(&action, &DeviceType::LightGun, &suppression)
+                {
                     handle_lightgun_action(
-                        &devices,
+                        devices.light_guns_for_player(target_player, &suppression),
                         &serial,
                         &action,
                         &value,
-                        target_player,
                         &player_param,
                         &game,
+                    );
+                } else if devices.has_action(&action) {
+                    debug!(
+                        "Action '{}' is only configured in devices suppressed by the game, skipping.",
+                        action
                     );
                 } else {
                     warn!(
@@ -295,8 +317,12 @@ async fn run_action_router(
                     );
                 }
             }
-            GameEvent::DeviceAction { action, game } => {
-                handle_device_action(&devices, &serial, &action, &game);
+            GameEvent::DeviceAction {
+                action,
+                game,
+                suppression,
+            } => {
+                handle_device_action(&devices, &serial, &action, &game, &suppression);
             }
             GameEvent::Data { .. } => {}
         }
@@ -305,16 +331,26 @@ async fn run_action_router(
     info!("Action router stopped");
 }
 
-/// Sends a device-level action (e.g. `enter_game`) to every device that has it configured.
-/// `{PLAYER}` is 0 (all players) and `{VALUE}` is empty.
+/// Sends a device-level action (e.g. `enter_game`) to every device that has it configured
+/// and is not suppressed by the game. `{PLAYER}` is 0 (all players) and `{VALUE}` is empty.
 fn handle_device_action(
     devices: &DeviceRegistry,
     serial: &SerialManager,
     action: &str,
     game: &str,
+    suppression: &[String],
 ) {
     for device in devices.devices() {
         if device.action(action).is_none() {
+            continue;
+        }
+        if device.is_suppressed(suppression) {
+            info!(
+                "Device '{}': suppressed by game '{}', not sending '{}'",
+                device.instance_name(),
+                game,
+                action
+            );
             continue;
         }
         info!(
@@ -343,8 +379,9 @@ fn handle_lightcontroller_action(
     value: &str,
     player_param: &str,
     game: &str,
+    suppression: &[String],
 ) {
-    let controllers = devices.get_by_type(&DeviceType::LightController);
+    let controllers = devices.active_by_type(&DeviceType::LightController, suppression);
     if controllers.is_empty() {
         debug!("[LIGHTCONTROLLER] No lightcontroller devices configured, skipping.");
         return;
@@ -380,18 +417,16 @@ fn handle_lightcontroller_action(
     }
 }
 
-/// Handles lightgun actions by dispatching to the light guns of the addressed player
+/// Handles lightgun actions by dispatching to `guns`, the light guns of the addressed player
 /// (see `DeviceRegistry::light_guns_for_player`).
 fn handle_lightgun_action(
-    devices: &DeviceRegistry,
+    guns: Vec<&Device>,
     serial: &SerialManager,
     action: &str,
     value: &str,
-    target_player: Option<u8>,
     player_param: &str,
     game: &str,
 ) {
-    let guns = devices.light_guns_for_player(target_player);
     if guns.is_empty() {
         debug!(
             "[LIGHTGUN] No lightgun for player {}, skipping action '{}'.",

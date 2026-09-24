@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 serialport = "4"
 notify-rust = "4"
+open = "5"
 tokio = { version = "1", features = [
     "sync",
     "time",

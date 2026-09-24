@@ -1,5 +1,6 @@
 use std::fs::{self, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use hof_common::paths;
@@ -8,6 +9,14 @@ use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
+
+/// Path of the log file written by this process (set by `init`).
+static LOG_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Returns the log file written by this process, or `None` if logging to a file is disabled.
+pub fn log_file() -> Option<&'static Path> {
+    LOG_FILE.get().map(PathBuf::as_path)
+}
 
 /// Sets up logging to the console and to `logs/hof-blaze.log`.
 ///
@@ -38,7 +47,10 @@ pub fn init() -> Option<WorkerGuard> {
         .init();
 
     match result {
-        Ok(path) => info!("Logging to {}", path.display()),
+        Ok(path) => {
+            info!("Logging to {}", path.display());
+            let _ = LOG_FILE.set(path);
+        }
         Err(err) => warn!("Logging to file disabled: {err:#}"),
     }
 

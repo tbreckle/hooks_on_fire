@@ -7,14 +7,15 @@ mod ports;
 
 use std::cell::RefCell;
 use std::fs;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::Context;
 use hof_common::build_info;
 use hof_common::config::{DeviceConnectionDetails, DeviceEntry, HofConfig, MAX_PLAYERS};
 use hof_common::data_files::{self, DataKind};
-use hof_common::instance_lock::InstanceLock;
-use hof_common::paths;
+use hof_common::instance_lock::{self, InstanceLock};
+use hof_common::{paths, switch};
 use serde::Deserialize;
 use slint::{ModelRc, SharedString, StandardListViewItem, VecModel};
 use tracing::{error, info};
@@ -169,7 +170,11 @@ fn run() -> anyhow::Result<()> {
 
     info!("hof-forge {version_string}");
 
-    let _lock = InstanceLock::acquire("hof-forge", "hof-blaze")?;
+    let lock = InstanceLock::acquire(
+        "hof-forge",
+        "hof-blaze",
+        instance_lock::lock_wait_from_args(),
+    )?;
 
     let config = HofConfig::load()?;
     info!("Config loaded");
@@ -479,26 +484,7 @@ fn run() -> anyhow::Result<()> {
         let window_weak = window.as_weak();
         let state_clone = state.clone();
         window.on_settings_saved(move || {
-            let win = window_weak.unwrap();
-            let tcp_host = win.get_tcp_host().to_string();
-            let tcp_port = win.get_tcp_port() as u16;
-            let udp_port = win.get_udp_broadcast_port() as u16;
-
-            let mut st = state_clone.borrow_mut();
-            st.config.tcp_host = tcp_host;
-            st.config.tcp_port = tcp_port;
-            st.config.udp_broadcast_port = udp_port;
-            if let Err(err) = st.config.save() {
-                drop(st);
-                win.set_settings_error(SharedString::from(
-                    format!("Save failed: {err:#}").as_str(),
-                ));
-                report_save_error(err);
-                return;
-            }
-            drop(st);
-
-            win.set_settings_error(SharedString::from(""));
+            save_settings(&window_weak.unwrap(), &state_clone);
         });
     }
 
@@ -534,8 +520,67 @@ fn run() -> anyhow::Result<()> {
         });
     }
 
+    // Switch to hof-blaze: save the settings, then close the window. hof-blaze is started
+    // below, once the instance lock is released.
+    let switch_to_blaze: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
+    {
+        let window_weak = window.as_weak();
+        let state_clone = state.clone();
+        let switch_clone = switch_to_blaze.clone();
+        window.on_switch_to_blaze(move || {
+            let win = window_weak.unwrap();
+            let path = match paths::sibling_exe("hof-blaze") {
+                Ok(path) => path,
+                Err(e) => {
+                    tracing::warn!("Cannot switch to hof-blaze: {e:#}");
+                    win.set_overview_error(SharedString::from(format!("{e:#}").as_str()));
+                    return;
+                }
+            };
+            if !save_settings(&win, &state_clone) {
+                win.set_overview_error(SharedString::from(
+                    "The settings could not be saved, not switching to hof-blaze.",
+                ));
+                return;
+            }
+            info!("Switching to hof-blaze.");
+            *switch_clone.borrow_mut() = Some(path);
+            let _ = slint::quit_event_loop();
+        });
+    }
+
     window.run()?;
+    drop(window);
+
+    if let Some(path) = switch_to_blaze.take() {
+        // hof-blaze waits for this lock (--wait-for-lock), so release it first.
+        drop(lock);
+        switch::launch(&path)?;
+    }
     Ok(())
+}
+
+/// Stores the Settings tab fields in the config and saves it. Errors are shown on the tab and
+/// in a message box. Returns true on success.
+fn save_settings(win: &MainWindow, state: &RefCell<AppState>) -> bool {
+    let mut st = state.borrow_mut();
+    st.config.tcp_host = win.get_tcp_host().to_string();
+    st.config.tcp_port = win.get_tcp_port() as u16;
+    st.config.udp_broadcast_port = win.get_udp_broadcast_port() as u16;
+    let result = st.config.save();
+    drop(st);
+
+    match result {
+        Ok(()) => {
+            win.set_settings_error(SharedString::from(""));
+            true
+        }
+        Err(err) => {
+            win.set_settings_error(SharedString::from(format!("Save failed: {err:#}").as_str()));
+            report_save_error(err);
+            false
+        }
+    }
 }
 
 /// Opens the user game files folder (created if missing) in the OS file manager.

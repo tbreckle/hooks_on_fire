@@ -110,6 +110,14 @@ impl Device {
     pub fn action(&self, name: &str) -> Option<&Vec<String>> {
         self.actions.get(name)
     }
+
+    /// Returns true if a game's `suppression` list names this device's type or device name.
+    pub fn is_suppressed(&self, suppression: &[String]) -> bool {
+        let device_type = self.device_type.to_string();
+        suppression
+            .iter()
+            .any(|s| *s == self.name || *s == device_type)
+    }
 }
 
 #[derive(Debug)]
@@ -229,12 +237,24 @@ impl DeviceRegistry {
         self.devices.is_empty()
     }
 
-    /// Light guns a command for `player` is sent to:
+    /// Devices of the given type that are not suppressed by the running game.
+    pub fn active_by_type(&self, device_type: &DeviceType, suppression: &[String]) -> Vec<&Device> {
+        self.devices
+            .iter()
+            .filter(|d| &d.device_type == device_type && !d.is_suppressed(suppression))
+            .collect()
+    }
+
+    /// Light guns a command for `player` is sent to (suppressed guns count as not configured):
     /// - `None` (all players): all light guns.
     /// - `Some(n)`: the light guns assigned to player n, or the unassigned light guns if no
     ///   light gun is assigned to player n.
-    pub fn light_guns_for_player(&self, player: Option<u8>) -> Vec<&Device> {
-        let guns = self.get_by_type(&DeviceType::LightGun);
+    pub fn light_guns_for_player(
+        &self,
+        player: Option<u8>,
+        suppression: &[String],
+    ) -> Vec<&Device> {
+        let guns = self.active_by_type(&DeviceType::LightGun, suppression);
         let Some(player) = player else {
             return guns;
         };
@@ -247,11 +267,22 @@ impl DeviceRegistry {
         }
     }
 
-    /// Returns true if any device of the given type has the specified action configured.
-    pub fn has_action_for_type(&self, action: &str, device_type: &DeviceType) -> bool {
-        self.devices
+    /// Returns true if any device of the given type that is not suppressed has the specified
+    /// action configured.
+    pub fn has_action_for_type(
+        &self,
+        action: &str,
+        device_type: &DeviceType,
+        suppression: &[String],
+    ) -> bool {
+        self.active_by_type(device_type, suppression)
             .iter()
-            .any(|d| &d.device_type == device_type && d.actions.contains_key(action))
+            .any(|d| d.actions.contains_key(action))
+    }
+
+    /// Returns true if any device (suppressed or not) has the specified action configured.
+    pub fn has_action(&self, action: &str) -> bool {
+        self.devices.iter().any(|d| d.actions.contains_key(action))
     }
 }
 
@@ -485,14 +516,55 @@ mod tests {
             ],
         };
 
-        assert_eq!(names(registry.light_guns_for_player(Some(1))), ["Gun P1"]);
-        assert_eq!(names(registry.light_guns_for_player(Some(2))), ["Gun P2"]);
+        assert_eq!(
+            names(registry.light_guns_for_player(Some(1), &[])),
+            ["Gun P1"]
+        );
+        assert_eq!(
+            names(registry.light_guns_for_player(Some(2), &[])),
+            ["Gun P2"]
+        );
         // Nobody is player 3: unassigned guns take it.
-        assert_eq!(names(registry.light_guns_for_player(Some(3))), ["Gun free"]);
+        assert_eq!(
+            names(registry.light_guns_for_player(Some(3), &[])),
+            ["Gun free"]
+        );
         // All players: every gun, but no light controller.
         assert_eq!(
-            names(registry.light_guns_for_player(None)),
+            names(registry.light_guns_for_player(None, &[])),
             ["Gun P1", "Gun P2", "Gun free"]
         );
+    }
+
+    #[test]
+    fn suppressed_devices_count_as_not_configured() {
+        let mut blast = device(DeviceType::LightController, "BLAST", None);
+        blast.name = "blast".to_string();
+        blast.actions.insert("recoil".to_string(), vec![]);
+        let mut gun_p1 = device(DeviceType::LightGun, "Gun P1", Some(1));
+        gun_p1.name = "openfire".to_string();
+        gun_p1.actions.insert("recoil".to_string(), vec![]);
+        let registry = DeviceRegistry {
+            devices: vec![
+                blast,
+                gun_p1,
+                device(DeviceType::LightGun, "Gun free", None),
+            ],
+        };
+        let by_name = ["openfire".to_string()];
+        let by_type = ["lightgun".to_string()];
+
+        // By device name: the P1 gun is gone, so the unassigned gun takes player 1.
+        assert_eq!(
+            names(registry.light_guns_for_player(Some(1), &by_name)),
+            ["Gun free"]
+        );
+        assert!(registry.light_guns_for_player(None, &by_type).is_empty());
+
+        let blast_name = ["blast".to_string()];
+        assert!(registry.has_action_for_type("recoil", &DeviceType::LightController, &[]));
+        assert!(!registry.has_action_for_type("recoil", &DeviceType::LightController, &blast_name));
+        assert!(!registry.has_action_for_type("recoil", &DeviceType::LightGun, &by_type));
+        assert!(registry.has_action("recoil"));
     }
 }

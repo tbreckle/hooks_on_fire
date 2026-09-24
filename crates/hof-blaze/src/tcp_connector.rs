@@ -115,6 +115,16 @@ pub fn start_tcp_connector(
                                     // Timeout occurred, loop again to check shutdown flag.
                                     continue;
                                 }
+                                if is_connection_closed(&err) {
+                                    // The source quit without closing the connection cleanly
+                                    // (e.g. TeknoParrot on Windows). This is a normal disconnect.
+                                    info!(
+                                        "TCP connection closed by server ({}). Try to reconnect.",
+                                        err
+                                    );
+                                    let _ = tray_tx.blocking_send(TrayEvent::StatusDisconnected {});
+                                    break;
+                                }
                                 error!("TCP read error: {}", err);
                                 let _ = tray_tx.blocking_send(TrayEvent::StatusFaulty {
                                     error: err.to_string(),
@@ -122,6 +132,13 @@ pub fn start_tcp_connector(
                                 break;
                             }
                         }
+                    }
+
+                    // The connection is gone: end the running game, as not every source
+                    // sends `mame_stop` before closing the connection.
+                    if tx.blocking_send(LineEvent::Disconnected).is_err() {
+                        error!("Failed to send disconnect event, receiver may have been dropped. Stopping TCP connector.");
+                        return Ok(());
                     }
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => {
@@ -148,4 +165,15 @@ pub fn start_tcp_connector(
         should_stop,
         thread_handle,
     })
+}
+
+/// Returns true for read errors that mean the other side closed the connection.
+fn is_connection_closed(err: &std::io::Error) -> bool {
+    matches!(
+        err.kind(),
+        std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::UnexpectedEof
+    )
 }

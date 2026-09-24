@@ -4,13 +4,16 @@ hof-forge edits your device list and network settings (`hof-config.yaml`). Chang
 saved immediately — on the *Devices* tab when you confirm a dialog, on the *Settings* tab
 when you press *Save*.
 
-hof-forge cannot run while hof-blaze is running. Exit hof-blaze from its tray menu first.
+hof-forge cannot run while hof-blaze is running. To switch from hof-blaze to hof-forge,
+choose **Open HoF-forge** in the hof-blaze tray menu.
 
 ## Overview tab
 
 Shows a short introduction, license information (hof-forge's user interface is made with
-[Slint](https://slint.dev)) and two buttons:
+[Slint](https://slint.dev)) and these buttons:
 
+- **Switch to hof-blaze** (`Ctrl+B`) saves the *Settings* tab, closes hof-forge and starts
+  [hof-blaze](hof-blaze.md). If the settings cannot be saved, hof-forge stays open.
 - **Open hof-blaze log** (`Ctrl+L`) opens hof-blaze's [log file](hof-blaze.md#log-file) with
   your system's default program for log files.
 - **Open game files folder** (`Ctrl+G`) opens the folder with your
@@ -87,7 +90,7 @@ controls; on macOS use `⌘` instead of `Ctrl`.
 
 | Where | Keys |
 |---|---|
-| Anywhere | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` switch tabs, `Ctrl+Tab` / `Ctrl+Shift+Tab` next/previous tab, `Ctrl+L` open log, `Ctrl+G` open game files folder |
+| Anywhere | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` switch tabs, `Ctrl+Tab` / `Ctrl+Shift+Tab` next/previous tab, `Ctrl+L` open log, `Ctrl+G` open game files folder, `Ctrl+B` switch to hof-blaze |
 | Lists | `↑` `↓`, `Page Up` / `Page Down`, `Home` / `End` |
 | Available Devices | `Enter` / `Ins` add |
 | Configured Instances | `Enter` / `F2` configure, `Del` remove |

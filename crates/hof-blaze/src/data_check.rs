@@ -67,6 +67,18 @@ fn shipped_game_files_are_valid() {
                 continue;
             }
         };
+        // Every suppression entry must be a device type or the name of a shipped device.
+        for entry in &config.suppression {
+            let known = ["lightgun", "lightcontroller"].contains(&entry.as_str())
+                || devices.iter().any(|d| d.name() == entry);
+            if !known {
+                problems.push(format!(
+                    "{}: suppression entry '{}' is neither a device type nor a device name",
+                    path.display(),
+                    entry
+                ));
+            }
+        }
         // Every command must be an action of at least one shipped device.
         for signal in &config.signals {
             for command in &signal.commands {

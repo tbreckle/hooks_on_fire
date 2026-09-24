@@ -52,6 +52,10 @@ pub struct Signal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
     pub players: Players,
+    /// Device types (`lightgun`, `lightcontroller`) and device names (e.g. `openfire`) that
+    /// get no commands while this game runs, not even `enter_game` / `leave_game`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suppression: Vec<String>,
     #[serde(default)]
     pub signals: Vec<Signal>,
     /// The game file exists but could not be loaded: never save this (default)
@@ -72,6 +76,10 @@ impl GameConfig {
                 self.players.count,
                 MAX_PLAYERS
             );
+        }
+
+        if self.suppression.iter().any(|s| s.trim().is_empty()) {
+            bail!("Suppression entries cannot be empty");
         }
 
         // Validate all signal player specs
@@ -117,6 +125,7 @@ impl GameConfig {
     pub(crate) fn default() -> GameConfig {
         let mut config = GameConfig {
             players: Players { count: 2 },
+            suppression: vec![],
             signals: vec![],
             read_only: false,
         };
@@ -314,5 +323,18 @@ mod fixed_signal_tests {
         let names: Vec<_> = config.signals.iter().map(|s| s.signal.as_str()).collect();
         assert_eq!(names, [STARTUP_SIGNAL, TEARDOWN_SIGNAL, "A"]);
         assert!(!config.ensure_fixed_signals());
+    }
+
+    #[test]
+    fn suppression_is_optional_and_not_saved_when_empty() {
+        let config = Gamefile::parse_str("players:\n  count: 2\n").unwrap();
+        assert!(config.suppression.is_empty());
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(!yaml.contains("suppression"));
+
+        let config =
+            Gamefile::parse_str("players:\n  count: 2\nsuppression:\n  - lightgun\n").unwrap();
+        assert_eq!(config.suppression, ["lightgun"]);
+        assert!(Gamefile::parse_str("players:\n  count: 2\nsuppression:\n  - ''\n").is_err());
     }
 }

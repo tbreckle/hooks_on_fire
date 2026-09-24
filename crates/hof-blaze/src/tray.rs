@@ -1,5 +1,8 @@
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use hof_common::events::TrayEvent;
+use hof_common::paths;
 use tracing::{info, warn};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
@@ -10,6 +13,15 @@ const ICON_BYTES_WAITING: &[u8] = include_bytes!("../../../assets/icon_waiting.p
 
 const EXIT_ID: &str = "exit_id";
 const FORGE_ID: &str = "forge_id";
+const LOG_ID: &str = "log_id";
+
+/// How the tray was left.
+pub enum TrayExit {
+    /// Exit was chosen.
+    Exit,
+    /// "Open HoF-forge" was chosen: start hof-forge (at this path) after shutting down.
+    SwitchToForge(PathBuf),
+}
 
 /// Connection status shown by the tray icon and the status menu item.
 #[derive(Clone, Copy, Debug)]
@@ -46,6 +58,13 @@ impl Tray {
 
         let exit_item: MenuItem = MenuItem::with_id(EXIT_ID, "&Exit", true, None);
         let open_forge: MenuItem = MenuItem::with_id(FORGE_ID, "Open HoF-&forge", true, None);
+        // Disabled if logging to a file failed on start.
+        let open_log: MenuItem = MenuItem::with_id(
+            LOG_ID,
+            "Open &log file",
+            crate::logging::log_file().is_some(),
+            None,
+        );
 
         let separator: PredefinedMenuItem = PredefinedMenuItem::separator();
 
@@ -57,6 +76,8 @@ impl Tray {
             .context("Failed to append menu separator.")?;
         menu.append(&open_forge)
             .context("Failed to append menu item for opening forge.")?;
+        menu.append(&open_log)
+            .context("Failed to append menu item for opening the log file.")?;
         menu.append(&separator)
             .context("Failed to append menu separator.")?;
         menu.append(&exit_item)
@@ -88,16 +109,47 @@ impl Tray {
         }
     }
 
-    /// Handles a click on a menu item. Returns `true` if Exit was chosen.
-    fn handle_menu_event(&self, event: &MenuEvent) -> bool {
+    /// Handles a click on a menu item. Returns how to leave the tray, or `None` to keep running.
+    fn handle_menu_event(&self, event: &MenuEvent) -> Option<TrayExit> {
         if event.id == EXIT_ID {
             info!("Exit requested via tray menu.");
-            return true;
+            return Some(TrayExit::Exit);
         }
         if event.id == FORGE_ID {
-            info!("Switching to HoF-Forge.");
+            // Only shut down if hof-forge can be started afterwards.
+            match paths::sibling_exe("hof-forge") {
+                Ok(path) => {
+                    info!("Switching to HoF-Forge.");
+                    return Some(TrayExit::SwitchToForge(path));
+                }
+                Err(err) => {
+                    warn!("Cannot switch to HoF-Forge: {err:#}");
+                    let _ = notify_rust::Notification::new()
+                        .summary("HoF-blaze: could not open HoF-forge")
+                        .body(&format!("{err:#}"))
+                        .show();
+                }
+            }
         }
-        false
+        if event.id == LOG_ID {
+            open_log_file();
+        }
+        None
+    }
+}
+
+/// Opens the log file with the OS default program. Errors are logged and shown as notification.
+fn open_log_file() {
+    let Some(path) = crate::logging::log_file() else {
+        return;
+    };
+    info!("Opening log file {}", path.display());
+    if let Err(err) = open::that_detached(path) {
+        warn!("Could not open log file {}: {}", path.display(), err);
+        let _ = notify_rust::Notification::new()
+            .summary("HoF-blaze: could not open log file")
+            .body(&format!("{}\n\nError: {}", path.display(), err))
+            .show();
     }
 }
 
@@ -135,8 +187,8 @@ fn spawn_event_forwarder(
     });
 }
 
-/// Shows the tray icon and runs its event loop on the current thread until Exit is chosen in
-/// the tray menu.
+/// Shows the tray icon and runs its event loop on the current thread until Exit or
+/// "Open HoF-forge" is chosen in the tray menu.
 ///
 /// Must be called on the main thread: macOS only allows the UI on the main thread, and on
 /// Linux GTK (also used by the startup message box) must be driven from a single thread.
@@ -146,7 +198,9 @@ pub fn run(
     runtime: &tokio::runtime::Handle,
     rx: tokio::sync::mpsc::Receiver<TrayEvent>,
     version_string: &str,
-) -> Result<()> {
+) -> Result<TrayExit> {
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::sync::mpsc;
     use std::time::Duration;
 
@@ -161,12 +215,15 @@ pub fn run(
 
     // Poll status updates and menu events on the GTK main thread.
     let menu_receiver = MenuEvent::receiver();
+    let exit = Rc::new(RefCell::new(TrayExit::Exit));
+    let exit_clone = Rc::clone(&exit);
     gtk::glib::timeout_add_local(Duration::from_millis(100), move || {
         while let Ok(status) = status_rx.try_recv() {
             tray.set_status(status);
         }
         while let Ok(event) = menu_receiver.try_recv() {
-            if tray.handle_menu_event(&event) {
+            if let Some(tray_exit) = tray.handle_menu_event(&event) {
+                *exit_clone.borrow_mut() = tray_exit;
                 gtk::main_quit();
                 return gtk::glib::ControlFlow::Break;
             }
@@ -175,11 +232,11 @@ pub fn run(
     });
 
     gtk::main();
-    Ok(())
+    Ok(exit.replace(TrayExit::Exit))
 }
 
-/// Shows the tray icon and runs its event loop on the current thread until Exit is chosen in
-/// the tray menu.
+/// Shows the tray icon and runs its event loop on the current thread until Exit or
+/// "Open HoF-forge" is chosen in the tray menu.
 ///
 /// Must be called on the main thread: macOS only allows the UI on the main thread, and winit
 /// refuses to create its event loop anywhere else. `TrayEvent`s are received by a task on
@@ -189,7 +246,7 @@ pub fn run(
     runtime: &tokio::runtime::Handle,
     rx: tokio::sync::mpsc::Receiver<TrayEvent>,
     version_string: &str,
-) -> Result<()> {
+) -> Result<TrayExit> {
     use winit::application::ApplicationHandler;
     use winit::event::{StartCause, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -205,6 +262,7 @@ pub fn run(
         version_string: String,
         tray: Option<Tray>,
         result: Result<()>,
+        exit: TrayExit,
     }
 
     impl ApplicationHandler<UserEvent> for TrayApp {
@@ -238,7 +296,8 @@ pub fn run(
             match event {
                 UserEvent::Status(status) => tray.set_status(status),
                 UserEvent::Menu(event) => {
-                    if tray.handle_menu_event(&event) {
+                    if let Some(exit) = tray.handle_menu_event(&event) {
+                        self.exit = exit;
                         event_loop.exit();
                     }
                 }
@@ -269,9 +328,10 @@ pub fn run(
         version_string: version_string.to_owned(),
         tray: None,
         result: Ok(()),
+        exit: TrayExit::Exit,
     };
     event_loop.run_app(&mut app).context("Event loop error")?;
     // Stop sending menu events to the closed event loop.
     MenuEvent::set_event_handler(None::<fn(MenuEvent)>);
-    app.result
+    app.result.map(|()| app.exit)
 }
