@@ -11,41 +11,54 @@ Download the archive for your system from the GitHub releases page:
 | macOS (Apple Silicon) | `hooks-on-fire-aarch64-apple-darwin.tar.gz` |
 | macOS (Intel) | `hooks-on-fire-x86_64-apple-darwin.tar.gz` |
 
-Unpack it into a folder **you can write to**, for example `C:\Games\HooksOnFire` or
-`~/HooksOnFire`. Avoid `C:\Program Files`: Hooks on Fire creates game files and its log
-file in this folder.
+Unpack it into any folder, for example `C:\Games\HooksOnFire` or `~/HooksOnFire`.
 
 ## Folder layout
 
-The archive contains the two programs. Add the [device files](device-files.md) for your
-hardware (for example `openfire.yaml` for OpenFIRE light guns, `blast.yaml` for the
-B.L.A.S.T. light controller). They are available in the Hooks on Fire repository.
+The archive contains the two programs and the shipped [device files](device-files.md) and
+[game files](game-files.md):
 
 ```
 HooksOnFire/
 ├── hof-blaze(.exe)      background program used while playing
 ├── hof-forge(.exe)      configuration editor
-├── openfire.yaml        device file
-├── blast.yaml           device file
-├── lostwsga.yaml        game file (created automatically)
+├── devices/             shipped device files
+│   ├── openfire.yaml    OpenFIRE light guns
+│   └── blast.yaml       B.L.A.S.T. light controller
+├── games/               shipped game files
+│   └── lostwsga.yaml    …
 └── logs/
     └── hof-blaze.log    log file (created automatically)
 ```
 
-Device files and game files are read from the folder the programs are started from.
-Start the programs from this folder: double-click them, or when using a terminal, change
-into the folder first (`cd ~/HooksOnFire`, then `./hof-blaze`).
+Do not change the files in `devices/` and `games/`: they are replaced when you install a
+new version. Your own and changed files go into your user folder (see below).
 
-## Settings file
+## Your files
 
-Your device list and network settings are stored in `hof-config.yaml`, which hof-forge
-creates and edits for you:
+Everything you configure is stored in your user folder, separate from the program:
 
-| System | Location |
+| System | User folder |
 |---|---|
-| Windows | `%APPDATA%\hooks-on-fire\hof-config.yaml` |
-| Linux | `~/.config/hooks-on-fire/hof-config.yaml` |
-| macOS | `~/Library/Application Support/hooks-on-fire/hof-config.yaml` |
+| Windows | `%APPDATA%\hooks-on-fire\` |
+| Linux | `~/.config/hooks-on-fire/` |
+| macOS | `~/Library/Application Support/hooks-on-fire/` |
+
+```
+hooks-on-fire/
+├── hof-config.yaml      your devices and network settings (edited with hof-forge)
+├── devices/             your own device files
+└── games/               your game files
+```
+
+- **Game files:** when hof-blaze changes a game file (a new game, a new signal), it saves
+  it to `games/` in your user folder. From then on, your copy is used instead of the
+  shipped one. Open the folder with *Open game files folder* in
+  [hof-forge](hof-forge.md#overview-tab).
+- **Device files:** put device files for other hardware into `devices/` in your user folder.
+  A file there with the same name as a shipped one replaces it.
+
+Updating Hooks on Fire never touches your user folder.
 
 ## System-specific notes
 

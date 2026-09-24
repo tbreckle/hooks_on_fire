@@ -17,6 +17,13 @@ pub fn config_file() -> Result<PathBuf> {
     Ok(config_dir()?.join("hof-config.yaml"))
 }
 
+/// Folder containing the running executable.
+pub fn exe_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
+}
+
 /// File name of the hof-blaze log file.
 pub const BLAZE_LOG_FILE: &str = "hof-blaze.log";
 
@@ -25,10 +32,7 @@ pub const BLAZE_LOG_FILE: &str = "hof-blaze.log";
 /// (fallback if the executable's folder is not writable, e.g. Program Files).
 pub fn log_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(exe_dir) = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
-    {
+    if let Some(exe_dir) = exe_dir() {
         dirs.push(exe_dir.join("logs"));
     }
     if let Ok(config_dir) = config_dir() {

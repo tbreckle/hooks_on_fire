@@ -9,6 +9,7 @@ use std::rc::Rc;
 use anyhow::Context;
 use hof_common::build_info;
 use hof_common::config::{DeviceConnectionDetails, DeviceEntry, HofConfig, MAX_PLAYERS};
+use hof_common::data_files::{self, DataKind};
 use hof_common::instance_lock::InstanceLock;
 use hof_common::paths;
 use serde::Deserialize;
@@ -43,17 +44,11 @@ struct DeviceFile {
     max_instances: Option<usize>,
 }
 
-/// Scans the current directory for YAML files whose root element is `device:`.
+/// Reads all device files (user layer and shipped, see `hof_common::data_files`), i.e. YAML
+/// files whose root element is `device:`.
 fn scan_device_files() -> Vec<DeviceFile> {
     let mut result = Vec::new();
-    let Ok(entries) = fs::read_dir(".") else {
-        return result;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
-            continue;
-        }
+    for path in data_files::list(DataKind::Devices) {
         let Ok(contents) = fs::read_to_string(&path) else {
             continue;
         };
@@ -480,12 +475,36 @@ fn main() -> anyhow::Result<()> {
                     format!("{e:#}")
                 }
             };
-            win.set_log_error(SharedString::from(message.as_str()));
+            win.set_overview_error(SharedString::from(message.as_str()));
+        });
+    }
+
+    // Open game files folder button: the user layer, where hof-blaze saves game files.
+    {
+        let window_weak = window.as_weak();
+        window.on_open_games_folder(move || {
+            let win = window_weak.unwrap();
+            let message = match open_games_folder() {
+                Ok(()) => String::new(),
+                Err(e) => {
+                    tracing::warn!("Failed to open game files folder: {e:#}");
+                    format!("{e:#}")
+                }
+            };
+            win.set_overview_error(SharedString::from(message.as_str()));
         });
     }
 
     window.run()?;
     Ok(())
+}
+
+/// Opens the user game files folder (created if missing) in the OS file manager.
+fn open_games_folder() -> anyhow::Result<()> {
+    let dir = data_files::user_dir(DataKind::Games)?;
+    fs::create_dir_all(&dir).with_context(|| format!("Could not create {}", dir.display()))?;
+    info!("Opening game files folder {}", dir.display());
+    open::that_detached(&dir).with_context(|| format!("Could not open {}", dir.display()))
 }
 
 /// Opens the most recently written hof-blaze log file with the OS default program.

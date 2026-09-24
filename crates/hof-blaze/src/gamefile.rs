@@ -54,6 +54,10 @@ pub struct GameConfig {
     pub players: Players,
     #[serde(default)]
     pub signals: Vec<Signal>,
+    /// The game file exists but could not be loaded: never save this (default)
+    /// configuration over it.
+    #[serde(skip)]
+    pub read_only: bool,
 }
 
 impl GameConfig {
@@ -114,6 +118,7 @@ impl GameConfig {
         let mut config = GameConfig {
             players: Players { count: 2 },
             signals: vec![],
+            read_only: false,
         };
         config.ensure_fixed_signals();
         config

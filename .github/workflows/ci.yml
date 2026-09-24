@@ -53,6 +53,8 @@ jobs:
         run: |
           mkdir -p dist
           cp target/release/hof-blaze target/release/hof-forge dist/
+          cp -R data/devices data/games dist/
+          cp README.md LICENSE dist/
           tar -czf hooks-on-fire-${{ runner.os }}.tar.gz -C dist .
 
       - name: Package artifacts (Windows)
@@ -61,10 +63,14 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item target/release/hof-blaze.exe, target/release/hof-forge.exe dist/
+          Copy-Item -Recurse data/devices, data/games dist/
+          Copy-Item README.md, LICENSE dist/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hooks-on-fire-${{ runner.os }}
-          path: ${{ runner.os == 'Windows' && 'dist/*.exe' || format('hooks-on-fire-{0}.tar.gz', runner.os) }}
+          path: ${{ runner.os == 'Windows' && 'dist/' || format('hooks-on-fire-{0}.tar.gz', runner.os) }}
           if-no-files-found: error
+          # Pull request builds are kept 14 days; 0 = repository default for other builds.
+          retention-days: ${{ github.event_name == 'pull_request' && 14 || 0 }}

@@ -51,7 +51,7 @@ export component MainWindow inherits Window {
     in-out property <string> settings-error <=> settings-tab.settings-error;
 
     // Overview state
-    in property <string> log-error;
+    in property <string> overview-error;
 
     // Callbacks
     callback add-clicked(int);
@@ -66,6 +66,7 @@ export component MainWindow inherits Window {
     callback configure-refresh-ports();
     callback settings-saved();
     callback open-log();
+    callback open-games-folder();
 
     function focus-tab-content() {
         if tabs.current-index == 1 {
@@ -98,6 +99,8 @@ export component MainWindow inherits Window {
                 root.settings-saved();
             } else if event.text == "l" || event.text == "L" {
                 root.open-log();
+            } else if event.text == "g" || event.text == "G" {
+                root.open-games-folder();
             } else {
                 return reject;
             }
@@ -111,8 +114,9 @@ export component MainWindow inherits Window {
             Tab {
                 title: "Overview";
                 OverviewTab {
-                    log-error: root.log-error;
+                    overview-error: root.overview-error;
                     open-log-clicked() => { root.open-log(); }
+                    open-games-clicked() => { root.open-games-folder(); }
                 }
             }
 

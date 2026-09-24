@@ -1,10 +1,12 @@
+---
+# Game file for "The Lost World: Jurassic Park" (game name: lostwsga).
 players:
   count: 2
 signals:
   - signal: ___startup
     player: ___all
     commands:
-      - lamp_pause_load_test
+      - lamp_generic
       - lamp_coin
   - signal: ___teardown
     player: ___all
@@ -14,25 +16,25 @@ signals:
     commands:
       - lamp_start
   - signal: LampView1
-    player: ___all
-    commands: []
-  - signal: LampView2
-    player: ___all
-    commands: []
-  - signal: LampView3
-    player: 1
+    player: 2
     commands:
       - lamp_start
+  - signal: LampView2
+    player: ___all
+    commands:
+      - lamp_coin
+  - signal: LampView3
+    player: ___all
+    commands: []
   - signal: LampView4
     player: ___all
     commands: []
   - signal: LampLeader
     player: ___all
-    commands:
-      - lamp_cabinet
-  - signal: RawLamps
-    player: ___all
     commands: []
   - signal: RawDrive
+    player: ___all
+    commands: []
+  - signal: RawLamps
     player: ___all
     commands: []

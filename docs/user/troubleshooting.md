@@ -11,7 +11,7 @@ hof-blaze shows a message box with the reason and exits when you press *OK*.
 |---|---|
 | *hof-forge is currently running* | Close hof-forge. The two programs cannot run at the same time. |
 | *No devices configured* | Add your devices in [hof-forge](hof-forge.md#adding-a-device). |
-| *Failed to read device file: …* | The device file named in the message is missing in the Hooks on Fire folder, or hof-blaze was not started from that folder. See [folder layout](installation.md#folder-layout). |
+| *Device file '…' for device '…' not found* | The device file is neither in the program's `devices/` folder nor in your [user folder](installation.md#your-files). Reinstall Hooks on Fire, or put the device file into `devices/` in your user folder. |
 | *Device '…' is not available: USB device … is not connected* | Plug in the device. If it is connected, open [Configure](hof-forge.md#configuring-a-device) in hof-forge and select it again. |
 | *… is connected more than once and cannot be told apart* | Two identical devices without a USB serial number are connected. Hooks on Fire cannot tell which one is which; connect only one of them. |
 | *Device '…' is configured N times …, but at most M instance(s) are allowed* | Remove the extra devices in hof-forge. |

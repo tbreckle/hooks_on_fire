@@ -30,8 +30,10 @@ It runs on Windows, Linux and macOS and consists of two programs:
 ## Quick start
 
 1. Download the archive for your system from the
-   [releases](../../releases) and unpack it into a writable folder.
-2. Put the device files for your hardware (e.g. `openfire.yaml`, `blast.yaml`) next to the programs.
+   [releases](../../releases) and unpack it into any folder. It includes device files for
+   OpenFIRE light guns and the B.L.A.S.T. light controller, and game files for several games.
+2. For other hardware, put its device file into your user folder (see the
+   [installation guide](docs/user/installation.md#your-files)).
 3. Start **hof-forge**, add your devices and select their USB ports.
 4. Enable the MAME-compatible network output of your emulator (MAME: `-output network`).
 5. Close hof-forge, start **hof-blaze** and play.

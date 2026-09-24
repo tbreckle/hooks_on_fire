@@ -1,11 +1,13 @@
 # Device files
 
 A device file describes a type of device — which connection it uses and which commands it
-understands. Device files are YAML files in the Hooks on Fire folder whose first entry is
-`device:`. hof-forge lists every device file it finds under *Available Devices*.
+understands. Device files are YAML files whose first entry is `device:`. hof-forge lists every
+device file it finds under *Available Devices*.
 
-Device files for supported hardware (e.g. `openfire.yaml`, `blast.yaml`) come with Hooks on
-Fire. You only need to edit them to add or change commands.
+Device files for supported hardware (`openfire.yaml`, `blast.yaml`) are shipped in the
+`devices/` folder of the program. To add a device or change commands, put a device file into
+`devices/` in your [user folder](installation.md#your-files). A file there replaces a shipped
+file with the same name — copy the shipped file first if you only want to change it.
 
 ## Example
 

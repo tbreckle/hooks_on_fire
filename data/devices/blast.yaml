@@ -1,4 +1,5 @@
 ---
+# Device file for the B.L.A.S.T. light controller (cabinet and player lamps).
 device:
   type: lightcontroller
   name: blast

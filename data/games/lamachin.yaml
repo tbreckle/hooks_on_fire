@@ -1,12 +1,19 @@
+---
+# Game file for "L.A. Machineguns: Rage of the Machines" (game name: lamachin).
 players:
   count: 2
 signals:
   - signal: ___startup
     player: ___all
     commands:
+      - enable_autofire
       - lamp_generic
       - lamp_coin
   - signal: ___teardown
+    player: ___all
+    commands:
+      - disable_autofire
+  - signal: RawDrive
     player: ___all
     commands: []
   - signal: LampStart
@@ -18,19 +25,18 @@ signals:
     commands:
       - lamp_start
   - signal: LampView2
-    player: ___all
-    commands: []
+    player: 1
+    commands:
+      - recoil
   - signal: LampView3
     player: ___all
     commands: []
   - signal: LampView4
-    player: 1
-    commands:
-      - recoil
+    player: ___all
+    commands: []
   - signal: LampLeader
-    player: 2
-    commands:
-      - recoil
+    player: ___all
+    commands: []
   - signal: RawLamps
     player: ___all
     commands: []

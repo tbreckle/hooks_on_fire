@@ -1,4 +1,5 @@
 ---
+# Device file for OpenFIRE light guns.
 device:
   type: lightgun
   name: openfire

@@ -1,6 +1,8 @@
 // Windows: run without a console window (hof-blaze is a tray app; output goes to the log file).
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+#[cfg(test)]
+mod data_check;
 mod data_stats;
 mod devices;
 mod engine;

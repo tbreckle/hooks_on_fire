@@ -8,17 +8,21 @@ hof-forge cannot run while hof-blaze is running. Exit hof-blaze from its tray me
 
 ## Overview tab
 
-Shows a short introduction and the button **Open hof-blaze log** (`Ctrl+L`), which opens
-hof-blaze's [log file](hof-blaze.md#log-file) with your system's default program for log
-files.
+Shows a short introduction and two buttons:
+
+- **Open hof-blaze log** (`Ctrl+L`) opens hof-blaze's [log file](hof-blaze.md#log-file) with
+  your system's default program for log files.
+- **Open game files folder** (`Ctrl+G`) opens the folder with your
+  [game files](game-files.md#where-game-files-are).
 
 ## Devices tab
 
 The tab has two lists:
 
 - **Available Devices** (left) lists the device types found in the [device files](device-files.md)
-  next to the program, e.g. `OpenFire [lightgun]`. Devices that may only be added a limited
-  number of times show how many are in use, e.g. `B.L.A.S.T. [lightcontroller]  (1/1)`.
+  (shipped and in your user folder), e.g. `OpenFire [lightgun]`. Devices that may only be
+  added a limited number of times show how many are in use, e.g.
+  `B.L.A.S.T. [lightcontroller]  (1/1)`.
 - **Configured Instances** (right) lists the devices you have added, e.g. `OpenFire P1  (Player 1)`.
 
 Both lists are sorted alphabetically.
@@ -82,7 +86,7 @@ controls; on macOS use `⌘` instead of `Ctrl`.
 
 | Where | Keys |
 |---|---|
-| Anywhere | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` switch tabs, `Ctrl+Tab` / `Ctrl+Shift+Tab` next/previous tab, `Ctrl+L` open log |
+| Anywhere | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` switch tabs, `Ctrl+Tab` / `Ctrl+Shift+Tab` next/previous tab, `Ctrl+L` open log, `Ctrl+G` open game files folder |
 | Lists | `↑` `↓`, `Page Up` / `Page Down`, `Home` / `End` |
 | Available Devices | `Enter` / `Ins` add |
 | Configured Instances | `Enter` / `F2` configure, `Del` remove |

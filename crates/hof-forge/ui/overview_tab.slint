@@ -1,9 +1,10 @@
 import { Button } from "std-widgets.slint";
 
 export component OverviewTab inherits VerticalLayout {
-    in property <string> log-error;
+    in property <string> overview-error;
 
     callback open-log-clicked();
+    callback open-games-clicked();
 
     padding: 24px;
     spacing: 16px;
@@ -71,8 +72,13 @@ export component OverviewTab inherits VerticalLayout {
             clicked => { root.open-log-clicked(); }
         }
 
+        Button {
+            text: "\u{1F4C2}  Open game files folder  (Ctrl+G)";
+            clicked => { root.open-games-clicked(); }
+        }
+
         Text {
-            text: root.log-error;
+            text: root.overview-error;
             color: red;
             vertical-alignment: center;
             wrap: word-wrap;

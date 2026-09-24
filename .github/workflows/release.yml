@@ -51,6 +51,8 @@ jobs:
           mkdir -p dist
           cp target/${{ matrix.target }}/release/hof-blaze dist/
           cp target/${{ matrix.target }}/release/hof-forge dist/
+          cp -R data/devices data/games dist/
+          cp README.md LICENSE dist/
           tar -czf hooks-on-fire-${{ matrix.target }}.tar.gz -C dist .
 
       - name: Package (Windows)
@@ -60,10 +62,12 @@ jobs:
           New-Item -ItemType Directory -Force dist
           Copy-Item target/${{ matrix.target }}/release/hof-blaze.exe dist/
           Copy-Item target/${{ matrix.target }}/release/hof-forge.exe dist/
+          Copy-Item -Recurse data/devices, data/games dist/
+          Copy-Item README.md, LICENSE dist/
           Compress-Archive -Path dist/* -DestinationPath hooks-on-fire-${{ matrix.target }}.zip
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hooks-on-fire-${{ matrix.target }}
           path: hooks-on-fire-${{ matrix.target }}.*
@@ -73,13 +77,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: artifacts/*

@@ -52,7 +52,7 @@ Keep `docs/user/` in sync when user-visible behavior, file formats, shortcuts or
 
 The project is a Cargo workspace (`crates/*`) with three crates:
 
-- **`hof-common`** - shared types: `HofConfig` (`config.rs`, incl. `MAX_PLAYERS`), events, paths (config dir, log dirs, lock files), instance locking, build info, and `usb` (USB serial port enumeration, `UsbId`, resolving USB id + serial number to the current port path). Config is stored at `~/.config/hooks-on-fire/hof-config.yaml` (Linux), `~/Library/Application Support/hooks-on-fire/` (macOS), `%APPDATA%\hooks-on-fire\` (Windows).
+- **`hof-common`** - shared types: `HofConfig` (`config.rs`, incl. `MAX_PLAYERS`), events, paths (config dir, log dirs, lock files), instance locking, build info, `data_files` (layered lookup of device/game files, see below), and `usb` (USB serial port enumeration, `UsbId`, resolving USB id + serial number to the current port path). Config is stored at `~/.config/hooks-on-fire/hof-config.yaml` (Linux), `~/Library/Application Support/hooks-on-fire/` (macOS), `%APPDATA%\hooks-on-fire\` (Windows).
 - **`hof-blaze`** - the main background daemon (system tray app). Receives MAME-compatible network output (from MAME, Supermodel, TeknoParrot/OutputBlaster, …) via TCP and UDP, processes it, and dispatches hardware commands.
 - **`hof-forge`** - a GUI config editor (Slint, UI files in `crates/hof-forge/ui/`) for editing `HofConfig`. Mutually exclusive with `hof-blaze` via instance lock.
 
@@ -83,9 +83,20 @@ UDP (udp_receiver) ───┘                                └──► Game
 
 Game start/end order: `___teardown` (old game) → `leave_game` (old game name) → `enter_game` (new game name) → `___startup` (new game). A game ends on `mame_stop`, on a new game, and on quit.
 
+### Data files (device and game files)
+
+Shipped device and game files live in the repository under `data/devices/` and `data/games/`. `hof_common::data_files` looks them up in two layers, first match wins:
+
+1. **User layer** – `devices/` and `games/` in the config directory (next to `hof-config.yaml`). Own and edited files.
+2. **Shipped layer** – `devices/` and `games/` next to the executable (release package), then `data/devices/` and `data/games/` in the working directory (development: `cargo run` from the repository root).
+
+The shipped layer is never written. hof-blaze saves game files only to the user layer (`data_files::user_path`), so a changed shipped game file is copied to the user layer on its first save and overrides the shipped one from then on (copy on write). A game file that exists but fails to parse is loaded as a default config with `read_only = true` and is never saved over. When developing, note that game files changed by hof-blaze end up in the user layer, not in `data/games/`; copy them back to update the shipped files.
+
+The release package (`release.yml`) and the CI artifacts (`ci.yml`) contain `devices/` and `games/` (copied from `data/`), `README.md` and `LICENSE` next to the binaries. `crates/hof-blaze/src/data_check.rs` (test only) validates all files in `data/` with the real parsers: device files parse and their `name` matches the file name, game files parse, and every command used in a game file is an action of some shipped device file.
+
 ### Game configuration files
 
-Per-game YAML files (e.g. `lostwsga.yaml`, `dayto2pe.yaml`) live next to the binary (read from the working directory). The file name is the game name received with `mame_start`/`game`. Schema:
+Per-game YAML files (e.g. `lostwsga.yaml`, `dayto2pe.yaml`, see data files above). The file name is the game name received with `mame_start`/`game`. Schema:
 ```yaml
 players:
   count: 2             # 1..=MAX_PLAYERS (4)
@@ -102,11 +113,11 @@ signals:
       - recoil_value
 ```
 
-If a game file is missing, the engine creates a default stub (incl. the fixed signals). Missing fixed signals are inserted into existing game files on load. Unknown signals received at runtime are appended to the file automatically.
+If a game file is missing, the engine creates a default stub (incl. the fixed signals) in the user layer. Missing fixed signals are inserted into existing game files on load. Unknown signals received at runtime are appended to the file automatically (saved to the user layer).
 
 ### Device configuration files
 
-Device YAML files (e.g. `blast.yaml`, `openfire.yaml`) live next to the binary (read from the working directory; hof-forge scans the working directory for them). They define hardware devices that receive commands from the action router. A YAML file is recognized as a device file if its root element is `device:`. Schema:
+Device YAML files (e.g. `blast.yaml`, `openfire.yaml`, see data files above; hof-blaze finds them with `data_files::find`, hof-forge lists them with `data_files::list`). They define hardware devices that receive commands from the action router. A YAML file is recognized as a device file if its root element is `device:`. Schema:
 ```yaml
 device:
   type: lightcontroller       # required: lightgun | lightcontroller
@@ -166,7 +177,7 @@ Game files support up to 4 players (`MAX_PLAYERS` in `hof-common`).
 
 ### hof-forge
 
-Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. The Overview tab can open the hof-blaze log file with the OS default program (`open` crate).
+Slint UI (`ui/main.slint`, `devices_tab.slint`, `settings_tab.slint`, `overview_tab.slint`), logic in `src/main.rs`, port dropdown in `src/ports.rs` (built on `hof_common::usb`; entries store the USB id, labels show the current port path). Lists are sorted alphabetically for display only (`instance_order` maps rows to `config.devices`; the order in `hof-config.yaml` is kept). The UI is fully keyboard-operable: key events only reach ancestors of the focused element, so focus is explicitly restored after dialogs close and tabs change. The Overview tab can open the hof-blaze log file with the OS default program and the user layer's game files folder in the file manager (`open` crate; `Ctrl+L` / `Ctrl+G`).
 
 ### Instance locking
 

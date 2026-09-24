@@ -1,8 +1,7 @@
 # Running hof-blaze
 
-hof-blaze is the program that runs while you play. Start it from the Hooks on Fire folder
-(see [installation](installation.md#folder-layout)); it places an icon in the system tray
-and shows a notification *Blaze started*.
+hof-blaze is the program that runs while you play. It places an icon in the system tray and
+shows a notification *Blaze started*.
 
 hof-blaze cannot run while hof-forge is running. Close hof-forge first.
 
@@ -31,11 +30,15 @@ To quit, choose **Exit** in the tray menu.
 
 ## During a game
 
-- When the emulator starts a game, hof-blaze loads its [game file](game-files.md) `<game>.yaml`.
-  If there is none yet, it creates one and shows a notification.
+- When the emulator starts a game, hof-blaze loads its [game file](game-files.md) `<game>.yaml`
+  (your own first, then the shipped one). If there is none yet, it creates one in your
+  [user folder](installation.md#your-files) and shows a notification.
 - Every signal the emulator sends is looked up in the game file, and the configured commands are
   sent to the devices. Signals that are not in the game file yet are added automatically
-  (without commands), so you can assign commands to them later.
+  (without commands), so you can assign commands to them later. Changed game files are always
+  saved to your user folder.
+- If a game file cannot be loaded (e.g. a typing error in it), a notification tells you so.
+  The game runs without commands and the file is left unchanged.
 - When a game starts or ends, the `enter_game` / `leave_game` commands of the devices and
   the `___startup` / `___teardown` commands of the game file are sent.
 
@@ -53,9 +56,9 @@ When you choose *Exit*, hof-blaze
 
 ## Log file
 
-hof-blaze writes everything it does to `logs/hof-blaze.log` in the Hooks on Fire folder. If
+hof-blaze writes everything it does to `logs/hof-blaze.log` in the program folder. If
 that folder is not writable, the log is written to a `logs` folder next to the
-[settings file](installation.md#settings-file) instead. The log file is emptied every time
+[user folder](installation.md#your-files) instead. The log file is emptied every time
 hof-blaze starts.
 
 Open it with the *Open hof-blaze log* button in [hof-forge](hof-forge.md#overview-tab)

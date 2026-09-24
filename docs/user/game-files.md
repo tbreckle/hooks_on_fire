@@ -2,12 +2,27 @@
 
 A game file tells Hooks on Fire what to do when a game sends a signal. There is one file per
 game, named after the game name the emulator sends with `mame_start` (for MAME the short
-name, e.g. `lostwsga.yaml` for *The Lost World*), in the Hooks on Fire folder.
+name, e.g. `lostwsga.yaml` for *The Lost World*).
 
 You normally do not create game files yourself: when a game is started for the first time,
 hof-blaze creates its file, and every signal the game sends is added to it. You then only
 fill in the commands. Edit the files with any text editor; changes take effect the next time
 the game is started.
+
+## Where game files are
+
+| Folder | Content |
+|---|---|
+| `games/` in your [user folder](installation.md#your-files) | Your game files. Used first. |
+| `games/` in the program folder | Game files shipped with Hooks on Fire. Replaced by updates. |
+
+hof-blaze only ever writes to your user folder. When it changes a shipped game file (for
+example to add a new signal), it saves the changed file to your user folder, which is used
+from then on. New game files are created there too. Open the folder with *Open game files
+folder* in [hof-forge](hof-forge.md#overview-tab) (`Ctrl+G`).
+
+To change a shipped game file that is not in your user folder yet, copy it from the program's
+`games/` folder into your user folder first and edit the copy.
 
 ## Example
 

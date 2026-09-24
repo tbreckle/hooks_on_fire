@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use hof_common::config::{DeviceEntry, MAX_PLAYERS};
+use hof_common::data_files::{self, DataKind};
 use hof_common::usb;
 use std::collections::HashMap;
 use std::path::Path;
@@ -126,20 +127,16 @@ impl DeviceRegistry {
         let usb_ports = usb::usb_serial_ports();
 
         for entry in entries {
-            let filename = format!("{}.yaml", entry.name);
-            let path = Path::new(&filename);
-
-            let content = std::fs::read_to_string(path)
-                .with_context(|| format!("Failed to read device file: {}", filename))?;
-
-            let raw: serde_yaml::Value = serde_yaml::from_str(&content)
-                .with_context(|| format!("Failed to parse YAML in {}", filename))?;
-
-            let device_value = raw
-                .get("device")
-                .with_context(|| format!("Missing root 'device' key in {}", filename))?;
-
-            let mut device = parse_device(device_value, &filename)?;
+            let path = data_files::find(DataKind::Devices, &entry.name).with_context(|| {
+                format!(
+                    "Device file '{}.yaml' for device '{}' not found (searched: {})",
+                    entry.name,
+                    entry.instance_name,
+                    data_files::describe_search_dirs(DataKind::Devices)
+                )
+            })?;
+            let filename = path.display().to_string();
+            let mut device = load_device_file(&path)?;
 
             if device.name != entry.name {
                 bail!(
@@ -286,6 +283,22 @@ const RESERVED_KEYS: &[&str] = &[
     "command-delay",
     "max-instances",
 ];
+
+/// Reads and parses a device file.
+pub fn load_device_file(path: &Path) -> Result<Device> {
+    let filename = path.display().to_string();
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read device file: {}", filename))?;
+
+    let raw: serde_yaml::Value = serde_yaml::from_str(&content)
+        .with_context(|| format!("Failed to parse YAML in {}", filename))?;
+
+    let device_value = raw
+        .get("device")
+        .with_context(|| format!("Missing root 'device' key in {}", filename))?;
+
+    parse_device(device_value, &filename)
+}
 
 fn parse_device(value: &serde_yaml::Value, source: &str) -> Result<Device> {
     let map = value

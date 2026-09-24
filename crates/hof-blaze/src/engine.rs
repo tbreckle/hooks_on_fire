@@ -1,5 +1,7 @@
 use anyhow::Context;
+use hof_common::data_files::{self, DataKind};
 use hof_common::events::{GameEvent, StateEvent};
+use std::path::PathBuf;
 use std::thread::JoinHandle;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
@@ -129,63 +131,56 @@ async fn handle_new_game(
 
     *current_game = game_name.to_string();
     send_device_action(ENTER_GAME_ACTION, game_name, action_tx).await;
-    let filename = format!("{}.yaml", game_name);
-    info!("Looking for game configuration file: {}", filename);
-
-    // Load game configuration
-    let config = match Gamefile::parse_file(&filename) {
-        Ok(mut config) => {
-            // Add the fixed signals to existing game files so the user can see and edit them.
-            if config.ensure_fixed_signals() {
-                info!("Adding fixed signals to game configuration: {}", filename);
-                Gamefile::save_to_file(&config, &filename).unwrap_or_else(|err| {
-                    error!("Failed to save updated configuration: {}.", err);
-                });
-            }
-            config
-        }
-        Err(err) => {
-            warn!(
-                "Failed to load game configuration for '{}': {}.",
-                game_name, err
-            );
-            // Check type of error, if file not existing create one, else go to failure.
-            if err.to_string().contains("No such file") {
-                info!(
-                    "Configuration file not found. Creating default configuration for game: {}",
-                    game_name
-                );
-                let _ = notify_rust::Notification::new()
-                    .summary("Hooks on Fire game not found.")
-                    .body(&format!(
-                    "Failed to load game configuration.\n\nCreating new configuration for game: {}",
-                    filename
-                ))
-                    .show();
-
-                // Create default configuration and save it to a file for the user to edit.
-                Gamefile::save_to_file(&GameConfig::default(), &filename).unwrap_or_else(|err| {
+    // Load the game file: user layer first, then the shipped game files.
+    let config = match data_files::find(DataKind::Games, game_name) {
+        Some(path) => {
+            info!("Loading game configuration file: {}", path.display());
+            match Gamefile::parse_file(&path) {
+                Ok(mut config) => {
+                    // Add the fixed signals to existing game files so the user can see and edit them.
+                    if config.ensure_fixed_signals() {
+                        info!("Adding fixed signals to game configuration: {}", game_name);
+                        save_game_file_or_notify(&config, game_name);
+                    }
+                    config
+                }
+                Err(err) => {
                     error!(
-                        "Failed to save default configuration for '{}': {}.",
-                        game_name, err
+                        "Failed to load game configuration {}: {:#}",
+                        path.display(),
+                        err
                     );
                     let _ = notify_rust::Notification::new()
                         .summary("Hooks on Fire configuration error.")
                         .body(&format!(
-                            "Failed to save default configuration for game: {}.\n\nError: {}",
-                            game_name, err
+                            "Failed to load game configuration {}.\n\nThe file is left unchanged.",
+                            path.display()
                         ))
                         .show();
-                });
-            } else {
-                error!(
-                    "Configuration file found but failed to load. Error: {}.",
-                    err
-                );
-                // TODO handle better, exit thread and app
+                    // Keep the broken file as it is: never save the default over it.
+                    GameConfig {
+                        read_only: true,
+                        ..GameConfig::default()
+                    }
+                }
             }
-
-            GameConfig::default()
+        }
+        None => {
+            info!(
+                "No game configuration found for '{}'. Creating default configuration.",
+                game_name
+            );
+            let config = GameConfig::default();
+            if let Some(path) = save_game_file_or_notify(&config, game_name) {
+                let _ = notify_rust::Notification::new()
+                    .summary("Hooks on Fire game not found.")
+                    .body(&format!(
+                        "No game configuration found.\n\nCreated new configuration for game: {}",
+                        path.display()
+                    ))
+                    .show();
+            }
+            config
         }
     };
 
@@ -260,6 +255,33 @@ async fn send_signal_actions(
     found
 }
 
+/// Saves a game file to the user layer (it then overrides a shipped game file of the same
+/// name). Errors are logged and shown as notification. Returns the saved path.
+fn save_game_file_or_notify(config: &GameConfig, game: &str) -> Option<PathBuf> {
+    let result = data_files::user_path(DataKind::Games, game)
+        .and_then(|path| Gamefile::save_to_file(config, &path).map(|()| path));
+    match result {
+        Ok(path) => {
+            debug!("Saved game configuration {}", path.display());
+            Some(path)
+        }
+        Err(err) => {
+            error!(
+                "Failed to save game configuration for '{}': {:#}",
+                game, err
+            );
+            let _ = notify_rust::Notification::new()
+                .summary("Hooks on Fire configuration error.")
+                .body(&format!(
+                    "Failed to save game configuration for '{}'.\n\nError: {:#}",
+                    game, err
+                ))
+                .show();
+            None
+        }
+    }
+}
+
 async fn handle_data_event(
     key: &str,
     value: &str,
@@ -295,18 +317,15 @@ async fn handle_data_event(
                 player: crate::gamefile::PlayerSpec::All("___all".to_string()),
             });
 
-            // Save updated config to file.
-            Gamefile::save_to_file(cfg, format!("{current_game}.yaml")).unwrap_or_else(|err| {
-                error!("Failed to save updated configuration: {}.", err);
-                let _ = notify_rust::Notification::new()
-                    .summary("Hooks on Fire configuration error.")
-                    .body(&format!(
-                        "Failed to save updated configuration.\n\nError: {}",
-                        err
-                    ))
-                    .show();
-            });
             info!("Added new signal to configuration: {}", key);
+            if cfg.read_only {
+                warn!(
+                    "Game file of '{}' could not be loaded, not saving the new signal.",
+                    current_game
+                );
+            } else {
+                save_game_file_or_notify(cfg, current_game);
+            }
         }
     }
 }

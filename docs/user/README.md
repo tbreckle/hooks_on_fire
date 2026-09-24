@@ -35,8 +35,8 @@ hof-forge before you play.
 
 ## Quick start
 
-1. [Install](installation.md) Hooks on Fire and put the device files for your hardware
-   next to the programs.
+1. [Install](installation.md) Hooks on Fire. Device files for OpenFIRE light guns and the
+   B.L.A.S.T. light controller and game files for several games are included.
 2. Start **hof-forge**, add your devices on the *Devices* tab, select their USB port and
    (for light guns) the player. See [hof-forge](hof-forge.md).
 3. Enable the [network output](network-output.md) of your emulator.
