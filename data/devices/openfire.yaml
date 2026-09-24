@@ -27,7 +27,7 @@ device:
   lightgun_reload:
     - F1x2x1 # Rumble once.
   lightgun_damage:
-    - F1x2x1 # Rumble once on damage.
+    - F1x2x2 # Rumble twice on damage.
     - F2x2x1 # Pulse LED red once on damage.
   lightgun_shake:
-    - F1x2x2 # Rumble once on shake.
+    - F1x2x3 # Rumble thrice on shake.

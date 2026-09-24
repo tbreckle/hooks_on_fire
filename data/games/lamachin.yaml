@@ -27,7 +27,7 @@ signals:
       - lamp_start
   - signal: LampView2
     player: 1
-    repeat: 250
+    repeat: 150
     commands:
       - lightgun_recoil
   - signal: LampView3
