@@ -56,14 +56,14 @@ Log level conventions: `info`/`debug` show what is happening; anything that indi
 - `CHANGELOG.md` – Keep a Changelog format. Add user-visible changes under `[Unreleased]`; Release Start turns it into the `[X.Y.Z]` section, which becomes the GitHub Release notes.
 - `docs/developer/gitflow.md` – branches, releases, hotfixes, versioning. `.github/WORKFLOWS.md` – CI/CD workflows. The rest of `docs/developer/` and `docs/architecture/` is not written yet.
 
-Keep `docs/user/` in sync when user-visible behavior, file formats, shortcuts or error messages change. In user-facing text, the data source is "MAME-compatible network output" (sent by MAME, Supermodel, TeknoParrot with OutputBlaster, …), not only MAME. The protocol keys `mame_start`/`mame_stop` keep their names.
+Keep `docs/user/` in sync when user-visible behavior, file formats, shortcuts or error messages change. In user-facing text, the data source is "MAME-compatible network output" (sent by MAME, Supermodel, TeknoParrot, …), not only MAME. The protocol keys `mame_start`/`mame_stop` keep their names.
 
 ## Architecture
 
 The project is a Cargo workspace (`crates/*`) with three crates:
 
 - **`hof-common`** - shared types: `HofConfig` (`config.rs`, incl. `MAX_PLAYERS`), events, paths (config dir, log dirs, lock files), instance locking, build info, `data_files` (layered lookup of device/game files, see below), and `usb` (USB serial port enumeration, `UsbId`, resolving USB id + serial number to the current port path). Config is stored at `~/.config/hooks-on-fire/hof-config.yaml` (Linux), `~/Library/Application Support/hooks-on-fire/` (macOS), `%APPDATA%\hooks-on-fire\` (Windows).
-- **`hof-blaze`** - the main background daemon (system tray app). Receives MAME-compatible network output (from MAME, Supermodel, TeknoParrot/OutputBlaster, …) via TCP and UDP, processes it, and dispatches hardware commands.
+- **`hof-blaze`** - the main background daemon (system tray app). Receives MAME-compatible network output (from MAME, Supermodel, TeknoParrot, …) via TCP and UDP, processes it, and dispatches hardware commands.
 - **`hof-forge`** - a GUI config editor (Slint, UI files in `crates/hof-forge/ui/`) for editing `HofConfig`. Mutually exclusive with `hof-blaze` via instance lock.
 
 ### hof-blaze startup and shutdown
@@ -88,7 +88,7 @@ UDP (udp_receiver) ───┘                                └──► Game
 ```
 
 1. `tcp_connector` and `udp_receiver` receive newline-delimited `key=value` messages and send them as `LineEvent::NewLine` on a Tokio `mpsc` channel. While nothing is listening on the TCP port (connection refused), the connector retries every second but only logs "Waiting for connection" every 10 seconds. When an established connection ends (closed, reset or aborted by the source), the connector sends `LineEvent::Disconnected` and reconnects; a reset/abort is a normal disconnect, not the faulty tray state.
-2. `line_processor` parses lines: special keys (`mame_start`/`game`, `mame_stop`, `pause`) become `StateEvent`; everything else becomes `GameEvent::Data`. `mame_start=___empty` is ignored. `LineEvent::Disconnected` becomes `StateEvent::GameStopped` if a game is running (TeknoParrot/OutputBlaster quits without `mame_stop`).
+2. `line_processor` parses lines: special keys (`mame_start`/`game`, `mame_stop`, `pause`) become `StateEvent`; everything else becomes `GameEvent::Data`. `mame_start=___empty` is ignored. `LineEvent::Disconnected` becomes `StateEvent::GameStopped` if a game is running (some sources quit without `mame_stop`).
 3. `engine` holds the active `GameConfig` (loaded from a per-game YAML file, e.g. `lostwsga.yaml`) and the current game name. On `StateEvent::NewGame` it ends the previous game, loads/creates the game file and starts the new one. On `GameEvent::Data` it matches against configured signals and emits `GameEvent::Action` events. It also collects data event statistics (`data_stats.rs`) that are logged on shutdown.
    After every `StateEvent` the engine sends `TrayEvent::GameStarted` (game name + the game file's `display-name`) or `TrayEvent::GameEnded` to the tray, which shows the game behind the status (`Status: Healthy (The Lost World: Jurassic Park - lostwsga)`, only the game name without `display-name`).
 4. `action_router` dispatches `GameEvent::Action` to light-controller or light-gun handlers, and `GameEvent::DeviceAction` (`enter_game`/`leave_game`) to every device that has the action.

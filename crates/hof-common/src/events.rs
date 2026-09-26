@@ -5,7 +5,7 @@ pub enum LineEvent {
         line: String,
     },
     /// The TCP connection to the emulator was lost. Ends the running game, because some
-    /// sources (e.g. TeknoParrot) close the connection without sending `mame_stop`.
+    /// sources close the connection without sending `mame_stop`.
     Disconnected,
 }
 

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- hof-blaze: background program (system tray) that receives MAME-compatible network output (MAME, Supermodel, TeknoParrot with OutputBlaster, …) via TCP and UDP and sends commands to serial devices
+- hof-blaze: background program (system tray) that receives MAME-compatible network output (MAME, Supermodel, TeknoParrot, …) via TCP and UDP and sends commands to serial devices
 - hof-forge: configuration editor for devices, USB ports and settings, fully keyboard-operable
 - Device files for OpenFIRE light guns and the B.L.A.S.T. light controller, game files for several games
 - Player routing for light guns, repeating signal commands, per-game device suppression

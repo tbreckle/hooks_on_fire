@@ -40,7 +40,7 @@ flowchart LR
     subgraph src [Emulators]
         MAME
         Supermodel
-        TP[TeknoParrot + OutputBlaster]
+        TP[TeknoParrot]
     end
     src -- "MAME-compatible network output<br/>TCP · UDP" --> blaze(("🔥 hof-blaze"))
     blaze -- serial --> guns["🔫 Light guns<br/>OpenFIRE"]
@@ -104,7 +104,7 @@ Tray icon shows the connection state and the running game, plus a log file and c
 
 ## 🕹️ Supported out of the box
 
-**Sources** – MAME, Supermodel, TeknoParrot with OutputBlaster, and any other program that sends
+**Sources** – MAME, Supermodel, TeknoParrot, and any other program that sends
 MAME-compatible network output ([setup](docs/user/network-output.md)).
 
 **Devices** – [OpenFIRE](https://github.com/TeamOpenFIRE) light guns and the B.L.A.S.T. light

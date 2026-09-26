@@ -2,7 +2,7 @@
 
 Hooks on Fire connects emulators to your light guns and arcade lighting. While a game runs,
 the emulator sends output signals — for example `LampStart=1` or `P1_CtmRecoil=1` — as
-**MAME-compatible network output**. MAME, Supermodel and TeknoParrot with OutputBlaster can
+**MAME-compatible network output**. MAME, Supermodel and TeknoParrot can
 send it, as can any other program using the same format. Hooks on Fire receives the
 signals, looks up what should happen for this game and sends the matching commands to your
 devices over their (USB) serial ports.
