@@ -130,7 +130,7 @@ impl Blaze {
     /// Runs on the Tokio runtime, while `main` shows the message box on the main thread.
     async fn start() -> anyhow::Result<Self> {
         let version_string = build_info::format_version(
-            env!("CARGO_PKG_VERSION"),
+            env!("HOF_VERSION"),
             env!("HOF_GIT_HASH"),
             env!("HOF_BUILD_DATE"),
         );
@@ -145,7 +145,7 @@ impl Blaze {
  |_|  |_|\___/ \___/|_|\_\___/  \___/|_| |_| |_|    |_|_|  \___|
                                                           v{}
 "#,
-            env!("CARGO_PKG_VERSION")
+            env!("HOF_VERSION")
         );
 
         info!("hof-blaze {version_string}");

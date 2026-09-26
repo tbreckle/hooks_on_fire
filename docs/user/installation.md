@@ -6,12 +6,14 @@ Download the archive for your system from the GitHub releases page:
 
 | System | Archive |
 |---|---|
-| Windows (64-bit) | `hooks-on-fire-x86_64-pc-windows-msvc.zip` |
-| Linux (64-bit) | `hooks-on-fire-x86_64-unknown-linux-gnu.tar.gz` |
-| macOS (Apple Silicon) | `hooks-on-fire-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `hooks-on-fire-x86_64-apple-darwin.tar.gz` |
+| Windows (64-bit) | `hooks-on-fire-X.Y.Z-windows-x86_64.zip` |
+| Linux (64-bit) | `hooks-on-fire-X.Y.Z-linux-x86_64.tar.gz` |
+| macOS (Apple Silicon and Intel) | `hooks-on-fire-X.Y.Z-macos-universal.tar.gz` |
 
-Unpack it into any folder, for example `C:\Games\HooksOnFire` or `~/HooksOnFire`.
+`X.Y.Z` is the version. `SHA256SUMS` lists the checksums of all archives.
+
+The archive contains the folder `hooks-on-fire-X.Y.Z-<system>`. Unpack it and move or rename the
+folder as you like, for example to `C:\Games\HooksOnFire` or `~/HooksOnFire`.
 
 ## Folder layout
 

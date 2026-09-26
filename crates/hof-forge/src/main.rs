@@ -163,7 +163,7 @@ fn report_save_error(err: anyhow::Error) {
 
 fn run() -> anyhow::Result<()> {
     let version_string = build_info::format_version(
-        env!("CARGO_PKG_VERSION"),
+        env!("HOF_VERSION"),
         env!("HOF_GIT_HASH"),
         env!("HOF_BUILD_DATE"),
     );

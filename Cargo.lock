@@ -1993,7 +1993,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hof-blaze"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "ctrlc",
@@ -2017,7 +2017,7 @@ dependencies = [
 
 [[package]]
 name = "hof-common"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -2030,7 +2030,7 @@ dependencies = [
 
 [[package]]
 name = "hof-forge"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "hof-common",
