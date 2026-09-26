@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-26
+
 ### Added
 - hof-blaze: background program (system tray) that receives MAME-compatible network output (MAME, Supermodel, TeknoParrot, …) via TCP and UDP and sends commands to serial devices
 - hof-forge: configuration editor for devices, USB ports and settings, fully keyboard-operable
