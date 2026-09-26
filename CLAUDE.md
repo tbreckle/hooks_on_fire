@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-The Rust version is pinned in `rust-toolchain.toml` (rustup installs it automatically; CI installs it with `rustup toolchain install`). To upgrade Rust, change `channel` there and fix any new clippy lints.
+The Rust version is pinned in `rust-toolchain.toml` (rustup installs it automatically; CI installs it with `rustup toolchain install`). To upgrade Rust, change `channel` there (and the Rust badge in `README.md`) and fix any new clippy lints.
 
 ### Build
 ```bash
@@ -21,6 +21,13 @@ cargo run -p hof-forge    # config GUI
 ```bash
 cargo test --workspace
 cargo test -p hof-common  # single crate
+```
+
+### Scripts
+```bash
+scripts/test.sh               # tests for version.sh and changelog.sh
+shellcheck scripts/*.sh       # CI check
+scripts/version.sh            # version of the current checkout
 ```
 
 ### Lint & Format
@@ -46,7 +53,8 @@ Log level conventions: `info`/`debug` show what is happening; anything that indi
 
 - `README.md` – project overview, logo (`docs/logo.png`, a copy of `assets/logo.png`).
 - `docs/user/` – user documentation (installation, network output setup, hof-forge, hof-blaze, game files, device files, troubleshooting).
-- `docs/developer/`, `docs/architecture/` – not written yet (placeholders).
+- `CHANGELOG.md` – Keep a Changelog format. Add user-visible changes under `[Unreleased]`; Release Start turns it into the `[X.Y.Z]` section, which becomes the GitHub Release notes.
+- `docs/developer/gitflow.md` – branches, releases, hotfixes, versioning. `.github/WORKFLOWS.md` – CI/CD workflows. The rest of `docs/developer/` and `docs/architecture/` is not written yet.
 
 Keep `docs/user/` in sync when user-visible behavior, file formats, shortcuts or error messages change. In user-facing text, the data source is "MAME-compatible network output" (sent by MAME, Supermodel, TeknoParrot with OutputBlaster, …), not only MAME. The protocol keys `mame_start`/`mame_stop` keep their names.
 
@@ -96,7 +104,7 @@ Shipped device and game files live in the repository under `data/devices/` and `
 
 The shipped layer is never written. hof-blaze saves game files only to the user layer (`data_files::user_path`), so a changed shipped game file is copied to the user layer on its first save and overrides the shipped one from then on (copy on write). A game file that exists but fails to parse is loaded as a default config with `read_only = true` and is never saved over. When developing, note that game files changed by hof-blaze end up in the user layer, not in `data/games/`; copy them back to update the shipped files.
 
-The release package (`release.yml`) and the CI artifacts (`ci.yml`) contain `devices/` and `games/` (copied from `data/`), `README.md` and `LICENSE` next to the binaries. `crates/hof-blaze/src/data_check.rs` (test only) validates all files in `data/` with the real parsers: device files parse and their `name` matches the file name, game files parse and have a `display-name`, and every command used in a game file is an action of some shipped device file.
+The archives built by `build.yml` (CI and releases) contain `devices/` and `games/` (copied from `data/`), `README.md`, `LICENSE` and `LICENSES/` next to the binaries. `crates/hof-blaze/src/data_check.rs` (test only) validates all files in `data/` with the real parsers: device files parse and their `name` matches the file name, game files parse and have a `display-name`, and every command used in a game file is an action of some shipped device file.
 
 ### Game configuration files
 
@@ -199,4 +207,8 @@ Switching: the hof-blaze tray entry "Open HoF-forge" and the hof-forge Overview 
 
 ### Build-time metadata
 
-`hof-blaze/build.rs` and `hof-forge/build.rs` inject `HOF_GIT_HASH` and `HOF_BUILD_DATE` env vars from git at compile time. hof-forge shows them in its window title, hof-blaze in its tray menu and log.
+`hof-blaze/build.rs` and `hof-forge/build.rs` inject `HOF_GIT_HASH` and `HOF_BUILD_DATE` env vars from git at compile time, and `HOF_VERSION` from the env var of the same name (set by CI from `scripts/version.sh`; falls back to the `Cargo.toml` version, which stays at `0.0.0`). hof-forge shows them in its window title, hof-blaze in its tray menu and log.
+
+### CI and releases
+
+GitFlow with GitHub Actions, taken over from B.L.A.S.T. (details in `.github/WORKFLOWS.md` and `docs/developer/gitflow.md`). No version is committed: `scripts/version.sh` computes it from branch and `vX.Y.Z` tags (`X.Y.Z` on tagged `main`, `X.Y.Z-rc.N` on `release/*`/`hotfix/*`, `0.0.0+<sha>` otherwise). `ci.yml` runs the reusable `build.yml` (per OS: clippy, tests, release build and archive; plus `cargo fmt` and shellcheck/`scripts/test.sh`). `release-start.yml` (manual) creates `release/X.Y.Z` or `hotfix/X.Y.Z`, updates CHANGELOG.md (`scripts/changelog.sh`) and opens a PR to `main`; merging it runs `release-finish.yml` (build, tag + GitHub Release, back-merge PR into `develop`). Release and back-merge PRs must be merged with a merge commit. Required status checks are listed in `.github/branch-protection.conf`; keep it in sync when job names change.
