@@ -92,12 +92,16 @@ async fn run_engine_loop(
                     StateEvent::GamePaused => {
                         info!("Game paused.");
                     }
+                    StateEvent::ReloadGame => {
+                        reload_game(&mut current_game, &mut current_config, &mut repeater, &action_tx).await;
+                    }
                 }
                 // Show the running game in the tray status.
                 let tray_event = match &current_config {
                     Some(cfg) => TrayEvent::GameStarted {
                         name: current_game.clone(),
                         display_name: cfg.display_name.clone(),
+                        file_error: cfg.read_only,
                     },
                     None => TrayEvent::GameEnded,
                 };
@@ -141,6 +145,37 @@ async fn end_current_game(
     }
 }
 
+/// Ends the running game and starts it again with its game file read anew, so changes to the
+/// file take effect without restarting the game.
+async fn reload_game(
+    current_game: &mut String,
+    current_config: &mut Option<GameConfig>,
+    repeater: &mut Repeater,
+    action_tx: &tokio::sync::mpsc::Sender<GameEvent>,
+) {
+    if current_config.is_none() {
+        info!("No game running, no game file to reload.");
+        return;
+    }
+    info!("Reloading game file of '{}'.", current_game);
+    let game_name = current_game.clone();
+    handle_new_game(
+        &game_name,
+        current_game,
+        current_config,
+        repeater,
+        action_tx,
+    )
+    .await;
+    // A file that failed to parse has already been reported by `handle_new_game`.
+    if current_config.as_ref().is_some_and(|cfg| !cfg.read_only) {
+        let _ = notify_rust::Notification::new()
+            .summary("HoF-blaze: game file reloaded")
+            .body(&format!("Reloaded the game file of: {game_name}"))
+            .show();
+    }
+}
+
 async fn handle_new_game(
     game_name: &str,
     current_game: &mut String,
@@ -178,10 +213,12 @@ async fn handle_new_game(
                         err
                     );
                     let _ = notify_rust::Notification::new()
-                        .summary("Hooks on Fire configuration error.")
+                        .summary("HoF-blaze: error in game file")
                         .body(&format!(
-                            "Failed to load game configuration {}.\n\nThe file is left unchanged.",
-                            path.display()
+                            "{}\n\n{:#}\n\nThe game runs without commands and the file is left \
+                             unchanged. Fix the file and choose \"Reload game file\" in the tray menu.",
+                            path.display(),
+                            err
                         ))
                         .show();
                     // Keep the broken file as it is: never save the default over it.

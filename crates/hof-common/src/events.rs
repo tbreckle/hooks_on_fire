@@ -10,9 +10,14 @@ pub enum LineEvent {
 }
 
 pub enum StateEvent {
-    NewGame { game_name: String },
+    NewGame {
+        game_name: String,
+    },
     GameStopped,
     GamePaused,
+    /// Reload the game file of the running game (tray menu): the game is ended and started
+    /// again with the file read anew.
+    ReloadGame,
 }
 
 pub enum GameEvent {
@@ -53,6 +58,8 @@ pub enum TrayEvent {
     GameStarted {
         name: String,
         display_name: Option<String>,
+        /// The game file could not be loaded: the game runs without commands.
+        file_error: bool,
     },
     /// No game is running (anymore).
     GameEnded,

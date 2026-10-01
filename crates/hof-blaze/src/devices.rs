@@ -322,7 +322,7 @@ pub fn load_device_file(path: &Path) -> Result<Device> {
         .with_context(|| format!("Failed to read device file: {}", filename))?;
 
     let raw: serde_yaml::Value = serde_yaml::from_str(&content)
-        .with_context(|| format!("Failed to parse YAML in {}", filename))?;
+        .with_context(|| format!("Error in device file {}", filename))?;
 
     let device_value = raw
         .get("device")

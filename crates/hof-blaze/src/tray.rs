@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use hof_common::events::TrayEvent;
+use hof_common::events::{StateEvent, TrayEvent};
 use hof_common::paths;
 use tracing::{info, warn};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -14,6 +14,7 @@ const ICON_BYTES_WAITING: &[u8] = include_bytes!("../../../assets/icon_waiting.p
 const EXIT_ID: &str = "exit_id";
 const FORGE_ID: &str = "forge_id";
 const LOG_ID: &str = "log_id";
+const RELOAD_ID: &str = "reload_id";
 
 /// How the tray was left.
 pub enum TrayExit {
@@ -35,8 +36,17 @@ enum TrayStatus {
 /// Change passed from the Tokio runtime to the tray loop.
 enum TrayUpdate {
     Status(TrayStatus),
-    /// Label of the running game (`None`: no game running).
-    Game(Option<String>),
+    /// The running game (`None`: no game running).
+    Game(Option<RunningGame>),
+}
+
+/// The running game as shown in the tray.
+struct RunningGame {
+    /// See `game_label`.
+    label: String,
+    /// The game file could not be loaded: shown with the faulty icon until the game ends or
+    /// its file is reloaded without error.
+    file_error: bool,
 }
 
 /// Builds a tray `Icon` from the embedded PNG.
@@ -48,18 +58,27 @@ fn load_icon(icon_bytes: &[u8]) -> Result<Icon> {
     Icon::from_rgba(img.into_raw(), w, h).context("Failed to create tray icon")
 }
 
-/// The tray icon and the menu item showing the status.
+/// The tray icon and the menu items that change at runtime.
 struct Tray {
     icon: TrayIcon,
     status_item: MenuItem,
+    /// "Reload game file", enabled while a game is running.
+    reload_item: MenuItem,
+    /// Sends `StateEvent::ReloadGame` to the engine.
+    reload_tx: tokio::sync::mpsc::Sender<StateEvent>,
     status: TrayStatus,
-    /// Label of the running game (see `game_label`), shown in brackets behind the status.
-    game: Option<String>,
+    /// The running game, shown in brackets behind the status.
+    game: Option<RunningGame>,
+    /// Icon currently shown, to set it only when it changes.
+    icon_bytes: &'static [u8],
 }
 
 impl Tray {
     /// Creates the tray icon with a context menu.
-    fn build(version_string: &str) -> Result<Self> {
+    fn build(
+        version_string: &str,
+        reload_tx: tokio::sync::mpsc::Sender<StateEvent>,
+    ) -> Result<Self> {
         let icon = load_icon(ICON_BYTES_WAITING)?;
         let menu = Menu::new();
 
@@ -68,6 +87,7 @@ impl Tray {
         let status_item: MenuItem = MenuItem::new("Status: Waiting", false, None);
 
         let exit_item: MenuItem = MenuItem::with_id(EXIT_ID, "&Exit", true, None);
+        let reload_item: MenuItem = MenuItem::with_id(RELOAD_ID, "&Reload game file", false, None);
         let open_forge: MenuItem = MenuItem::with_id(FORGE_ID, "Open HoF-&forge", true, None);
         // Disabled if logging to a file failed on start.
         let open_log: MenuItem = MenuItem::with_id(
@@ -85,6 +105,8 @@ impl Tray {
             .context("Failed to append menu item for status")?;
         menu.append(&separator)
             .context("Failed to append menu separator.")?;
+        menu.append(&reload_item)
+            .context("Failed to append menu item for reloading the game file.")?;
         menu.append(&open_forge)
             .context("Failed to append menu item for opening forge.")?;
         menu.append(&open_log)
@@ -104,34 +126,50 @@ impl Tray {
         Ok(Self {
             icon,
             status_item,
+            reload_item,
+            reload_tx,
             status: TrayStatus::Waiting,
             game: None,
+            icon_bytes: ICON_BYTES_WAITING,
         })
     }
 
     fn update(&mut self, update: TrayUpdate) {
         match update {
-            TrayUpdate::Status(status) => {
-                self.status = status;
-                let icon_bytes = match status {
-                    TrayStatus::Waiting | TrayStatus::Disconnected => ICON_BYTES_WAITING,
-                    TrayStatus::Healthy => ICON_BYTES_HEALTHY,
-                    TrayStatus::Faulty => ICON_BYTES_FAULTY,
-                };
-                if let Err(err) = load_icon(icon_bytes).and_then(|icon| {
-                    self.icon
-                        .set_icon(Some(icon))
-                        .context("Failed to set tray icon")
-                }) {
-                    warn!("Failed to update tray icon: {err:#}");
-                }
+            TrayUpdate::Status(status) => self.status = status,
+            TrayUpdate::Game(game) => {
+                self.reload_item.set_enabled(game.is_some());
+                self.game = game;
             }
-            TrayUpdate::Game(game) => self.game = game,
         }
+        self.update_icon();
         self.status_item.set_text(self.status_text());
     }
 
-    /// Status menu text, e.g. `Status: Healthy (The Lost World: Jurassic Park - lostwsga)`.
+    /// Shows the icon for the status; a game file error shows the faulty icon as well.
+    fn update_icon(&mut self) {
+        let file_error = self.game.as_ref().is_some_and(|game| game.file_error);
+        let icon_bytes = match self.status {
+            _ if file_error => ICON_BYTES_FAULTY,
+            TrayStatus::Waiting | TrayStatus::Disconnected => ICON_BYTES_WAITING,
+            TrayStatus::Healthy => ICON_BYTES_HEALTHY,
+            TrayStatus::Faulty => ICON_BYTES_FAULTY,
+        };
+        if std::ptr::eq(icon_bytes, self.icon_bytes) {
+            return;
+        }
+        self.icon_bytes = icon_bytes;
+        if let Err(err) = load_icon(icon_bytes).and_then(|icon| {
+            self.icon
+                .set_icon(Some(icon))
+                .context("Failed to set tray icon")
+        }) {
+            warn!("Failed to update tray icon: {err:#}");
+        }
+    }
+
+    /// Status menu text, e.g. `Status: Healthy (The Lost World: Jurassic Park - lostwsga)` or
+    /// `Status: Healthy (lostwsga - error in game file)`.
     fn status_text(&self) -> String {
         let status = match self.status {
             TrayStatus::Waiting => "Waiting",
@@ -140,7 +178,10 @@ impl Tray {
             TrayStatus::Faulty => "Faulty",
         };
         match &self.game {
-            Some(game) => format!("Status: {status} ({game})"),
+            Some(game) if game.file_error => {
+                format!("Status: {status} ({} - error in game file)", game.label)
+            }
+            Some(game) => format!("Status: {status} ({})", game.label),
             None => format!("Status: {status}"),
         }
     }
@@ -169,6 +210,12 @@ impl Tray {
         }
         if event.id == LOG_ID {
             open_log_file();
+        }
+        if event.id == RELOAD_ID {
+            info!("Game file reload requested via tray menu.");
+            if let Err(err) = self.reload_tx.try_send(StateEvent::ReloadGame) {
+                warn!("Could not reload the game file: {err}");
+            }
         }
         None
     }
@@ -227,11 +274,15 @@ fn spawn_event_forwarder(
                     warn!("Game status faulty: {}", error);
                     update(TrayUpdate::Status(TrayStatus::Faulty));
                 }
-                TrayEvent::GameStarted { name, display_name } => {
-                    update(TrayUpdate::Game(Some(game_label(
-                        &name,
-                        display_name.as_deref(),
-                    ))));
+                TrayEvent::GameStarted {
+                    name,
+                    display_name,
+                    file_error,
+                } => {
+                    update(TrayUpdate::Game(Some(RunningGame {
+                        label: game_label(&name, display_name.as_deref()),
+                        file_error,
+                    })));
                 }
                 TrayEvent::GameEnded => update(TrayUpdate::Game(None)),
             }
@@ -249,6 +300,7 @@ fn spawn_event_forwarder(
 pub fn run(
     runtime: &tokio::runtime::Handle,
     rx: tokio::sync::mpsc::Receiver<TrayEvent>,
+    reload_tx: tokio::sync::mpsc::Sender<StateEvent>,
     version_string: &str,
 ) -> Result<TrayExit> {
     use std::cell::RefCell;
@@ -258,7 +310,7 @@ pub fn run(
 
     gtk::init().context("Failed to initialize GTK")?;
 
-    let mut tray = Tray::build(version_string)?;
+    let mut tray = Tray::build(version_string, reload_tx)?;
 
     let (update_tx, update_rx) = mpsc::channel::<TrayUpdate>();
     spawn_event_forwarder(runtime, rx, move |update| {
@@ -297,6 +349,7 @@ pub fn run(
 pub fn run(
     runtime: &tokio::runtime::Handle,
     rx: tokio::sync::mpsc::Receiver<TrayEvent>,
+    reload_tx: tokio::sync::mpsc::Sender<StateEvent>,
     version_string: &str,
 ) -> Result<TrayExit> {
     use winit::application::ApplicationHandler;
@@ -312,6 +365,8 @@ pub fn run(
 
     struct TrayApp {
         version_string: String,
+        /// Taken when the tray is built.
+        reload_tx: Option<tokio::sync::mpsc::Sender<StateEvent>>,
         tray: Option<Tray>,
         result: Result<()>,
         exit: TrayExit,
@@ -321,7 +376,10 @@ pub fn run(
         fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
             // The tray icon can only be created once the event loop runs (macOS).
             if cause == StartCause::Init {
-                match Tray::build(&self.version_string) {
+                let Some(reload_tx) = self.reload_tx.take() else {
+                    return;
+                };
+                match Tray::build(&self.version_string, reload_tx) {
                     Ok(tray) => self.tray = Some(tray),
                     Err(err) => {
                         self.result = Err(err);
@@ -378,6 +436,7 @@ pub fn run(
 
     let mut app = TrayApp {
         version_string: version_string.to_owned(),
+        reload_tx: Some(reload_tx),
         tray: None,
         result: Ok(()),
         exit: TrayExit::Exit,

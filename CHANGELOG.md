@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- hof-blaze: tray menu entry "Reload game file" reads the running game's file again without restarting the game
+
+### Fixed
+- hof-blaze: an error in the running game's file is shown in the tray (faulty icon, "error in game file") and the notification shows the error with line and column
+- hof-blaze: startup errors (e.g. an error in a device file) are also shown as notification, in case the message box is hidden behind a fullscreen window
+- hof-forge: device files with errors are reported in a message box instead of being left out silently
+
 ## [1.0.0] - 2026-09-26
 
 ### Added

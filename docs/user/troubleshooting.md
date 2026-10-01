@@ -5,13 +5,16 @@ hof-forge with *Open hof-blaze log* (`Ctrl+L`).
 
 ## hof-blaze does not start
 
-hof-blaze shows a message box with the reason and exits when you press *OK*.
+hof-blaze shows a message box and a notification with the reason and exits when you press
+*OK*. If the message box is hidden behind a fullscreen window, hof-blaze keeps running until
+you find it and press *OK*; until then hof-forge reports that hof-blaze is running.
 
 | Message | Solution |
 |---|---|
 | *hof-forge is currently running* | Close hof-forge, or use *Switch to hof-blaze* in hof-forge. The two programs cannot run at the same time. |
 | *No devices configured* | Add your devices in [hof-forge](hof-forge.md#adding-a-device). |
 | *Device file '…' for device '…' not found* | The device file is neither in the program's `devices/` folder nor in your [user folder](installation.md#your-files). Reinstall Hooks on Fire, or put the device file into `devices/` in your user folder. |
+| *Error in device file …* | The device file has an error, e.g. wrong indentation after editing it. The message shows the line and column. Fix the file, or delete your copy in the [user folder](installation.md#your-files) to use the shipped one again. |
 | *Device '…' is not available: USB device … is not connected* | Plug in the device. If it is connected, open [Configure](hof-forge.md#configuring-a-device) in hof-forge and select it again. |
 | *… is connected more than once and cannot be told apart* | Two identical devices without a USB serial number are connected. Hooks on Fire cannot tell which one is which; connect only one of them. |
 | *Device '…' is configured N times …, but at most M instance(s) are allowed* | Remove the extra devices in hof-forge. |
@@ -22,11 +25,15 @@ hof-blaze shows a message box with the reason and exits when you press *OK*.
 - Check the tray icon: if it does not show *Status: Healthy*, hof-blaze is not connected to
   the emulator. Make sure the emulator's [network output](network-output.md) is enabled and
   that host and port in hof-forge's *Settings* tab match.
+- If the status shows *error in game file*, the game file has an error and the game runs
+  without commands. The notification and the log show the line and column. Fix the file and
+  choose **Reload game file** in the tray menu.
 - Open the game's [game file](game-files.md) and check that the signals have commands.
   Signals without commands (`commands: []`) do nothing.
 - Check that the command names in the game file exist as actions in the
   [device file](device-files.md). The log shows *Unknown action command* otherwise.
-- Changes to a game file take effect the next time the game is started.
+- Changes to a game file take effect the next time the game is started, or after
+  **Reload game file** in the tray menu.
 
 ## A command reaches the wrong light gun, or all of them
 

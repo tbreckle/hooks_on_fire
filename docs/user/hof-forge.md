@@ -26,7 +26,9 @@ The tab has two lists:
 - **Available Devices** (left) lists the device types found in the [device files](device-files.md)
   (shipped and in your user folder), e.g. `OpenFire [lightgun]`. Devices that may only be
   added a limited number of times show how many are in use, e.g.
-  `B.L.A.S.T. [lightcontroller]  (1/1)`.
+  `B.L.A.S.T. [lightcontroller]  (1/1)`. Device files with an error (for example invalid
+  YAML after editing) are not listed; hof-forge shows a message box with the file and the
+  error when it starts.
 - **Configured Instances** (right) lists the devices you have added, e.g. `OpenFire P1  (Player 1)`.
 
 Both lists are sorted alphabetically.

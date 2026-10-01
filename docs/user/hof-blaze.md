@@ -14,8 +14,10 @@ hof-blaze cannot run while hof-forge is running. To switch from hof-forge to hof
 3. The `setup` commands of each device are sent.
 4. hof-blaze connects to the emulator's [network output](network-output.md) and waits for games.
 
-If anything fails — for example a device is not connected — a message box explains the
-problem and hof-blaze exits when you press *OK*. See [troubleshooting](troubleshooting.md).
+If anything fails — for example a device is not connected or a device file has an error — a
+message box and a notification explain the problem, and hof-blaze exits when you press *OK*.
+If you only see the notification, the message box may be hidden behind a fullscreen window;
+hof-blaze keeps running (and hof-forge cannot start) until you press *OK*. See [troubleshooting](troubleshooting.md).
 
 ## Tray icon
 
@@ -24,16 +26,27 @@ problem and hof-blaze exits when you press *OK*. See [troubleshooting](troublesh
 | Waiting | `Status: Waiting` / `Status: Disconnected` | Not connected (emulator not running or its network output disabled). |
 | Healthy | `Status: Healthy` | Connected to the emulator. |
 | Faulty | `Status: Faulty` | The connection to the emulator failed with an error. |
+| Faulty | `Status: … (lostwsga - error in game file)` | The game file of the running game has an error, see below. |
 
 While a game is running, it is shown in brackets behind the status: the `display-name` from
 its [game file](game-files.md) and the game name sent by the emulator, for example
 `Status: Healthy (The Lost World: Jurassic Park - lostwsga)`. Without `display-name`, only the
 game name is shown.
 
+If the game file of the running game has an error (for example wrong indentation after
+editing it), the game runs without commands. hof-blaze shows a notification with the file and
+the error (line and column), the faulty icon and `error in game file` in the status. The file
+is left unchanged. Fix it and choose **Reload game file**.
+
 A notification is also shown when the connection to the emulator is established or lost.
 
 The tray menu also has:
 
+- **Reload game file**: reads the [game file](game-files.md) of the running game again, so
+  your changes take effect without restarting the game. The game is ended and started again:
+  its `___teardown` and `leave_game` commands are sent, then `enter_game` and `___startup`
+  from the reloaded file. Only available while a game is running. Device files and the
+  configuration from hof-forge are not reloaded; restart hof-blaze for those.
 - **Open HoF-forge**: exits hof-blaze (see [what happens on exit](#what-happens-on-exit)) and
   starts [hof-forge](hof-forge.md) to change the configuration.
 - **Open log file**: opens the [log file](#log-file) with your system's default program.

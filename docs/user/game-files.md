@@ -7,7 +7,8 @@ name, e.g. `lostwsga.yaml` for *The Lost World*).
 You normally do not create game files yourself: when a game is started for the first time,
 hof-blaze creates its file, and every signal the game sends is added to it. You then only
 fill in the commands. Edit the files with any text editor; changes take effect the next time
-the game is started.
+the game is started, or right away with **Reload game file** in the
+[hof-blaze tray menu](hof-blaze.md#tray-icon).
 
 ## Where game files are
 

@@ -70,7 +70,12 @@ fn main() -> anyhow::Result<()> {
         .tray_rx
         .take()
         .expect("tray receiver is taken only once");
-    let tray_result = tray::run(runtime.handle(), tray_rx, &blaze.version_string);
+    let tray_result = tray::run(
+        runtime.handle(),
+        tray_rx,
+        blaze.reload_tx.clone(),
+        &blaze.version_string,
+    );
     if let Err(err) = &tray_result {
         error!("Tray failed: {err:#}");
     }
@@ -90,11 +95,19 @@ fn main() -> anyhow::Result<()> {
     result
 }
 
-/// Shows an error in a message box and waits until the user presses OK.
+/// Shows an error in a notification and in a message box and waits until the user presses OK.
+///
+/// The message box has no parent window and may open behind a fullscreen game or frontend;
+/// hof-blaze then seems to hang. The notification is shown on top.
 ///
 /// Must not be called while the tray is running: on Linux both use GTK, which must not be
 /// driven from two threads.
 fn show_error(title: &str, err: &anyhow::Error) {
+    let _ = notify_rust::Notification::new()
+        .summary(title)
+        .body(&format!("{err:#}"))
+        .show();
+
     // Without a display GTK cannot start and the dialog would block forever (e.g. over SSH).
     #[cfg(target_os = "linux")]
     if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
@@ -117,6 +130,8 @@ struct Blaze {
     serial: Arc<SerialManager>,
     /// Taken by the tray when it starts.
     tray_rx: Option<mpsc::Receiver<TrayEvent>>,
+    /// Lets the tray menu ask the engine to reload the running game's file.
+    reload_tx: mpsc::Sender<StateEvent>,
     keep_alive_tx: mpsc::Sender<GameEvent>,
     udp_handle: UdpReceiverHandle,
     tcp_handle: TcpConnectorHandle,
@@ -179,6 +194,7 @@ impl Blaze {
             let (line_tx, line_rx) = mpsc::channel::<LineEvent>(32);
             let (tray_tx, tray_rx) = mpsc::channel::<TrayEvent>(32);
             let (state_tx, state_rx) = mpsc::channel::<StateEvent>(32);
+            let reload_tx = state_tx.clone();
             let (game_tx, game_rx) = mpsc::channel::<GameEvent>(32);
             let (action_tx, action_rx) = mpsc::channel::<GameEvent>(32);
             let keep_alive_tx = action_tx.clone(); // Keep a sender alive for the engine to prevent it from exiting.
@@ -198,6 +214,7 @@ impl Blaze {
             let engine_handle = start_engine(state_rx, game_rx, action_tx, tray_tx)?;
             Ok((
                 tray_rx,
+                reload_tx,
                 action_rx,
                 keep_alive_tx,
                 udp_handle,
@@ -205,7 +222,7 @@ impl Blaze {
                 engine_handle,
             ))
         })();
-        let (tray_rx, action_rx, keep_alive_tx, udp_handle, tcp_handle, engine_handle) =
+        let (tray_rx, reload_tx, action_rx, keep_alive_tx, udp_handle, tcp_handle, engine_handle) =
             match services {
                 Ok(services) => services,
                 Err(err) => {
@@ -229,6 +246,7 @@ impl Blaze {
             devices,
             serial,
             tray_rx: Some(tray_rx),
+            reload_tx,
             keep_alive_tx,
             udp_handle,
             tcp_handle,

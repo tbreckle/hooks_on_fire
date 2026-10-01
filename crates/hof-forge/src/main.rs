@@ -18,15 +18,10 @@ use hof_common::instance_lock::{self, InstanceLock};
 use hof_common::{paths, switch};
 use serde::Deserialize;
 use slint::{ModelRc, SharedString, StandardListViewItem, VecModel};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-// Minimal structs for detecting and reading device YAML files.
-#[derive(Deserialize)]
-struct DeviceYamlRoot {
-    device: DeviceYamlInfo,
-}
-
-#[derive(Deserialize)]
+// Minimal struct for reading device YAML files.
+#[derive(Debug, Deserialize)]
 struct DeviceYamlInfo {
     name: String,
     #[serde(rename = "display-name")]
@@ -49,24 +44,42 @@ struct DeviceFile {
 }
 
 /// Reads all device files (user layer and shipped, see `hof_common::data_files`), i.e. YAML
-/// files whose root element is `device:`.
-fn scan_device_files() -> Vec<DeviceFile> {
+/// files whose root element is `device:`. Returns the device files and an error message for
+/// each file that could not be read (e.g. a YAML syntax error); these are not listed.
+fn scan_device_files() -> (Vec<DeviceFile>, Vec<String>) {
     let mut result = Vec::new();
+    let mut errors = Vec::new();
     for path in data_files::list(DataKind::Devices) {
-        let Ok(contents) = fs::read_to_string(&path) else {
-            continue;
-        };
-        let Ok(root) = serde_yaml_ng::from_str::<DeviceYamlRoot>(&contents) else {
-            continue;
-        };
-        result.push(DeviceFile {
-            name: root.device.name,
-            display_name: root.device.display_name,
-            device_type: root.device.device_type,
-            max_instances: root.device.max_instances,
-        });
+        match read_device_file(&path) {
+            Ok(Some(info)) => result.push(DeviceFile {
+                name: info.name,
+                display_name: info.display_name,
+                device_type: info.device_type,
+                max_instances: info.max_instances,
+            }),
+            Ok(None) => info!("Skipping {}: not a device file", path.display()),
+            Err(err) => {
+                let err = err.context(format!("Error in device file {}", path.display()));
+                warn!("{err:#}");
+                errors.push(format!("{err:#}"));
+            }
+        }
     }
-    result
+    (result, errors)
+}
+
+/// Reads a device file. `None` if it is YAML without a `device:` root element.
+fn read_device_file(path: &std::path::Path) -> anyhow::Result<Option<DeviceYamlInfo>> {
+    parse_device_file(&fs::read_to_string(path)?)
+}
+
+/// Parses the contents of a device file, see `read_device_file`.
+fn parse_device_file(contents: &str) -> anyhow::Result<Option<DeviceYamlInfo>> {
+    let root: serde_yaml_ng::Value = serde_yaml_ng::from_str(contents)?;
+    let Some(device) = root.get("device") else {
+        return Ok(None);
+    };
+    Ok(Some(serde_yaml_ng::from_value(device.clone())?))
 }
 
 struct AppState {
@@ -179,7 +192,7 @@ fn run() -> anyhow::Result<()> {
     let config = HofConfig::load()?;
     info!("Config loaded");
 
-    let mut devices = scan_device_files();
+    let (mut devices, device_file_errors) = scan_device_files();
     devices.sort_by_cached_key(|d| (d.display_name.to_lowercase(), d.device_type.clone()));
     info!("Found {} device file(s)", devices.len());
 
@@ -195,6 +208,16 @@ fn run() -> anyhow::Result<()> {
     }));
 
     let window = MainWindow::new()?;
+
+    if !device_file_errors.is_empty() {
+        let err = anyhow::anyhow!(
+            "These device files have errors and are not listed under available devices. \
+             Fix them and restart hof-forge.\n\n{}",
+            device_file_errors.join("\n\n")
+        );
+        // Shown once the event loop runs, i.e. over the main window.
+        slint::Timer::single_shot(std::time::Duration::ZERO, move || show_error(&err));
+    }
     window.set_version(SharedString::from(version_string.as_str()));
 
     // Player dropdown entries: index 0 = not assigned, index n = player n.
@@ -656,4 +679,37 @@ fn refresh_instance_list(
         .map_or(-1, |row| row as i32);
     st.instance_order = order;
     row
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_device_file_reads_device() {
+        let info = parse_device_file(
+            "device:\n  type: lightgun\n  name: openfire\n  display-name: OpenFIRE\n  max-instances: 4\n",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(info.name, "openfire");
+        assert_eq!(info.display_name, "OpenFIRE");
+        assert_eq!(info.device_type, "lightgun");
+        assert_eq!(info.max_instances, Some(4));
+    }
+
+    #[test]
+    fn parse_device_file_skips_other_yaml() {
+        assert!(parse_device_file("players:\n  count: 2\n")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn parse_device_file_reports_errors() {
+        let err = parse_device_file("device:\n  type: lightgun\n   name: [\n").unwrap_err();
+        assert!(format!("{err:#}").contains("line 3"), "{err:#}");
+        let err = parse_device_file("device:\n  type: lightgun\n  name: openfire\n").unwrap_err();
+        assert!(format!("{err:#}").contains("display-name"), "{err:#}");
+    }
 }
